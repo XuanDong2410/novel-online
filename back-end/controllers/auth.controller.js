@@ -1,4 +1,4 @@
-import { User } from "../models/user.model.js";
+import {User} from "../models/user.model.js";
 export async function signup(req, res) {
     try {
         const {email, password, username} = req.body;
@@ -39,9 +39,9 @@ export async function signup(req, res) {
         const PROFILE_PICS = ["/avatar1.png", "/avatar2.png", "/avatar3.png"];
         const image = PROFILE_PICS[Math.floor(Math.random() * PROFILE_PICS.length)];
         const newUser = new User({
-            email,
-            password,
-            username,
+            email: email,
+            password: password,
+            username: username,
             image: image,
         });
         await newUser.save();
