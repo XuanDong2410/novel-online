@@ -1,5 +1,6 @@
 import {User} from "../models/user.model.js";
 import bcryptjs from "bcryptjs";
+import { generateTokenAndSetCookie } from "../utils/generateToken.js";
 
 export const signup = async (req, res) =>
 {
@@ -51,6 +52,8 @@ export const signup = async (req, res) =>
             username: username,
             image: image,
         });
+        
+        generateTokenAndSetCookie(newUser._id, res);
         await newUser.save();
         return res.status(201).json(
             {
@@ -60,9 +63,9 @@ export const signup = async (req, res) =>
                     ...newUser._doc,
                     password: "",
                 },
-            }
-            
+            }            
         );
+        
     } catch (error) {
         res.status(500).json({
             success: false,
@@ -72,8 +75,60 @@ export const signup = async (req, res) =>
     }
 }
 export async function login(req, res) {
-    res.send("Login route");
+    try {
+        const {email, password} = req.body;
+        if(!email || !password) {
+            return res.status(400).json({
+                success: false,
+                message: "All fields are required",
+            });
+        }
+        const user = await User.findOne({email: email});
+        if(!user) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid credentials",
+            });
+        }
+        const isPasswordCorrect = await bcryptjs.compare(password, user.password);
+        if(!isPasswordCorrect) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid credentials",
+            });
+        }
+        generateTokenAndSetCookie(user._id, res);
+        return res.status(200).json({
+            success: true,
+            message: "Logged in successfully",
+            user: {
+                ...user._doc,
+                password: "",
+            },
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Internal server error",
+        }); 
+        console.log("Error in login controller: ", error.message); 
+        
+    }
 }
 export async function logout(req, res) {
-    res.send("Logout route");
+    try{
+        res.clearCookie("jwt-novel");
+        return res.status(200).json({
+            success: true,
+            message: "Logged out successfully",
+        });
+    }
+    catch(error) {
+        res.status(500).json({
+            success: false,
+            message: "Internal server error",
+        }); 
+        console.log("Error in logout controller: ", error.message); 
+    }
 }
