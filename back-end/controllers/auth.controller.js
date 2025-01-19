@@ -1,6 +1,8 @@
 import {User} from "../models/user.model.js";
-export async function signup(req, res) {
+export const signup = async (req, res) =>
+{
     try {
+
         const {email, password, username} = req.body;
         if(!email || !password || !username) {
             return res.status(400).json({
@@ -45,6 +47,9 @@ export async function signup(req, res) {
             image: image,
         });
         await newUser.save();
+        return res.status(201).json(
+            newUser.json(),
+        );
     } catch (error) {
         res.status(500).json({
             success: false,
