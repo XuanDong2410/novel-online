@@ -1,4 +1,6 @@
 import {User} from "../models/user.model.js";
+import bcryptjs from "bcryptjs";
+
 export const signup = async (req, res) =>
 {
     try {
@@ -38,17 +40,28 @@ export const signup = async (req, res) =>
             });
         }
 
+        const salt = await bcryptjs.genSalt(10);
+        const hashedPassword = await bcryptjs.hash(password, salt);
+
         const PROFILE_PICS = ["/avatar1.png", "/avatar2.png", "/avatar3.png"];
         const image = PROFILE_PICS[Math.floor(Math.random() * PROFILE_PICS.length)];
         const newUser = new User({
             email: email,
-            password: password,
+            password: hashedPassword,
             username: username,
             image: image,
         });
         await newUser.save();
         return res.status(201).json(
-            newUser.json(),
+            {
+                success: true,
+                message: "User created successfully",
+                user: {
+                    ...newUser._doc,
+                    password: "",
+                },
+            }
+            
         );
     } catch (error) {
         res.status(500).json({
