@@ -1,6 +1,7 @@
 import Chapter from "../../models/novel/chapter.model.js";
 import Novel from "../../models/novel/novel.model.js";
 
+import { generateAudio, generateSubtitles } from "../../utils/generateAudio.js";
 
 export const createChapter = async (req, res) => {
     try {
@@ -19,6 +20,8 @@ export const createChapter = async (req, res) => {
                 message: "Please provide title and content"
             })
         }
+        const { audioFileUrl } = await generateAudio(content);
+        const { subtitleUrl } = await generateSubtitles(content);
         // Fetch all chapters of the novel
         const chapters = await Chapter.find({ novelId }).sort({ chapterNumber: 1 });
 
@@ -43,15 +46,16 @@ export const createChapter = async (req, res) => {
                 }
             }
         }
-        const newChapter = new Chapter({
-            title,
-            content,            
-            novelId: novelId,
-        });
+        // const newChapter = new Chapter({
+        //     title,
+        //     content,            
+        //     novelId: novelId,
+        // });
         const chapter = await Chapter.create({
             ...req.body,
             chapterNumber: newChapterNumber,
-            audioFileUrl: "",
+            audioFileUrl: audioFileUrl,
+            subtitleFileUrl: subtitleFileUrl,
             novel: novelId
         });
         await newChapter.save();

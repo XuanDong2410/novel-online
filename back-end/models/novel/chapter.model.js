@@ -15,7 +15,11 @@ const chapterSchema = new mongoose.Schema({
   },
   audioFileUrl: {
     type: String,
-    required: false,
+    required: true,
+  },
+  audioFileUrl: {
+    type: String,
+    required: true,
   },
   novelId: {
     type: mongoose.Schema.Types.ObjectId,
