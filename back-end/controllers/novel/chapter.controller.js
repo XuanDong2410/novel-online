@@ -1,10 +1,10 @@
 import Chapter from "../../models/novel/chapter.model.js";
 import Novel from "../../models/novel/novel.model.js";
-import mongoose from "mongoose";
+
 
 export const createChapter = async (req, res) => {
     try {
-        const { title, content, novelId } = req.body;
+        const { title, content, chapterNumber , novelId } = req.body;
         
         const novel = await Novel.findById(novelId);
         if (!novel) {
@@ -19,10 +19,42 @@ export const createChapter = async (req, res) => {
                 message: "Please provide title and content"
             })
         }
+        // Fetch all chapters of the novel
+        const chapters = await Chapter.find({ novelId }).sort({ chapterNumber: 1 });
+
+        let newChapterNumber = chapterNumber;
+        if (!newChapterNumber) {
+            // If chapterNumber is not provided, auto-increment
+            newChapterNumber = chapters.length + 1;
+        } else {
+            // If chapterNumber is provided, ensure it doesn't conflict
+            if (newChapterNumber <= 0) {
+                return res.status(400).json({
+                success: false,
+                message: "Invalid chapter number",
+                });
+            }
+
+            // Shift chapter numbers if a specific chapterNumber is provided
+            for (const chapter of chapters) {
+                if (chapter.chapterNumber >= newChapterNumber) {
+                chapter.chapterNumber += 1;
+                await chapter.save(); // Update the chapter number in the database
+                }
+            }
+        }
+        const newChapter = new Chapter({
+            title,
+            content,            
+            novelId: novelId,
+        });
         const chapter = await Chapter.create({
             ...req.body,
+            chapterNumber: newChapterNumber,
+            audioFileUrl: "",
             novel: novelId
         });
+        await newChapter.save();
         res.status(201).json({
             success: true,
             message: "Chapter created successfully",
@@ -35,6 +67,25 @@ export const createChapter = async (req, res) => {
             message: error.message
         })
         console.error("Error creating chapter" + error.message);
+    }
+}
+export const updateChapter = async (req, res) => {
+    try {        
+        //const chapter = await Chapter.findOne({ _id: req.params.chapter });       
+        const updateChapter = await Chapter.findByIdAndUpdate(
+            req.params.chapter, req.body,{ new: true }
+        );
+        res.status(200).json({
+            success: true,
+            message: "Chapter updated successfully",
+            chapter: updateChapter
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+        console.error("Error updating chapter" + error.message);
     }
 }
 export const getAllChaptersByNovel = async (req, res) => {
