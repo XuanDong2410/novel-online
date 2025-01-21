@@ -36,10 +36,17 @@ const defaultRequest = {
  * @param {string} resourceType - Cloudinary resource type ('video' or 'raw')
  * @returns {Promise<string>} - Uploaded file URL
  */
-const uploadToCloudinary = async (filePath, resourceType) => {
+const uploadToCloudinary = async (filePath, options) => {
     try {
-        const uploadResult = await cloudinary.uploader.upload(filePath, { resource_type: resourceType });
-        await fs.unlink(filePath); // Cleanup temporary file
+       
+
+        // Upload file to Cloudinary
+        const uploadResult = await cloudinary.uploader.upload(filePath, options);
+
+        // Cleanup temporary file
+        await fs.unlink(filePath);
+
+        // Return the secure URL of the uploaded file
         return uploadResult.secure_url;
     } catch (error) {
         console.error(`Error uploading file to Cloudinary: ${error.message}`);
@@ -78,32 +85,66 @@ export const generateAudio = async (content, languageCode, ssmlGender) => {
         await fs.writeFile(tempAudioPath, response.audioContent, "binary");
 
         // Upload audio file to Cloudinary
-        return await uploadToCloudinary(tempAudioPath, "video");
+        return await uploadToCloudinary(tempAudioPath,  { resource_type: "video" });
     } catch (error) {
         console.error(`Error generating audio: ${error.message}`);
         throw new Error("Failed to generate audio");
     }
 };
-
 /**
- * Generate subtitle file and upload it to Cloudinary
+ * Generate subtitle file with UTF-8 encoding and proper Vietnamese text
  * @param {string} content - Text content for subtitle
+ * @param {number} wordsPerSecond - Average words spoken per second (default: 2)
  * @returns {Promise<string>} - URL of the uploaded subtitle file
  */
-export const generateSubtitles = async (content) => {
+export const generateSubtitles = async (content, wordsPerSecond = 2) => {
     try {
         // Ensure temp directory exists
         await fs.ensureDir(TEMP_DIR);
 
-        // Generate subtitle content
-        const subtitleContent = `WEBVTT\n\n1\n00:00:00.000 --> 00:00:10.000\n${content}`;
-        const tempVttPath = path.join(TEMP_DIR, "subtitle.vtt");
-        await fs.writeFile(tempVttPath, subtitleContent, "utf-8");
+        // Split content into sentences
+        const sentences = content.match(/[^.!?]+[.!?]*/g) || [content]; // Fallback to the whole content if no sentences
 
+        // Generate timestamps for each sentence
+        let currentTime = 0; // Start time in seconds
+        const subtitleLines = sentences.map((sentence, index) => {
+            const wordCount = sentence.split(/\s+/).length;
+            const duration = wordCount / wordsPerSecond; // Duration in seconds
+            const start = formatTime(currentTime);
+            const end = formatTime(currentTime + duration);
+            currentTime += duration;
+
+            return `${index + 1}\n${start} --> ${end}\n${sentence.trim()}`;
+        });
+
+        // Combine all subtitle lines
+        const subtitleContent = `WEBVTT\n\n${subtitleLines.join("\n\n")}`;
+        // Ensure newline characters are consistent across platforms
+
+        // Save subtitle content to temporary file with UTF-8 encoding
+        const tempVttPath = path.join(TEMP_DIR, "subtitle.vtt");
+        await fs.writeFile(tempVttPath, subtitleContent, { encoding: "utf8" });
+
+        
         // Upload subtitle file to Cloudinary
-        return await uploadToCloudinary(tempVttPath, "raw");
+        return await uploadToCloudinary(tempVttPath,  {
+            resource_type: "raw",            
+            format: "vtt",
+        });
     } catch (error) {
         console.error(`Error generating subtitles: ${error.message}`);
         throw new Error("Failed to generate subtitles");
     }
+};
+
+/**
+ * Format time in seconds to VTT timestamp format (hh:mm:ss.sss)
+ * @param {number} timeInSeconds - Time in seconds
+ * @returns {string} - Formatted timestamp
+ */
+const formatTime = (timeInSeconds) => {
+    const hours = Math.floor(timeInSeconds / 3600);
+    const minutes = Math.floor((timeInSeconds % 3600) / 60);
+    const seconds = (timeInSeconds % 60).toFixed(3);
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(6, "0")}`;
 };

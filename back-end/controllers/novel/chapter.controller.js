@@ -20,8 +20,8 @@ export const createChapter = async (req, res) => {
                 message: "Please provide title and content"
             })
         }
-        const { audioFileUrl } = await generateAudio(content);
-        const { subtitleFileUrl } = await generateSubtitles(content);
+        const audioFileUrl  = await generateAudio(content);
+        const subtitleFileUrl = await generateSubtitles(content);
         if (!audioFileUrl || !subtitleFileUrl) {
             throw new Error("Failed to generate audio or subtitle URLs");
         }
