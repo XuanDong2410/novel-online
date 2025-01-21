@@ -21,7 +21,10 @@ export const createChapter = async (req, res) => {
             })
         }
         const { audioFileUrl } = await generateAudio(content);
-        const { subtitleUrl } = await generateSubtitles(content);
+        const { subtitleFileUrl } = await generateSubtitles(content);
+        if (!audioFileUrl || !subtitleFileUrl) {
+            throw new Error("Failed to generate audio or subtitle URLs");
+        }
         // Fetch all chapters of the novel
         const chapters = await Chapter.find({ novelId }).sort({ chapterNumber: 1 });
 
@@ -51,7 +54,7 @@ export const createChapter = async (req, res) => {
         //     content,            
         //     novelId: novelId,
         // });
-        const chapter = await Chapter.create({
+        const newChapter = await Chapter.create({
             ...req.body,
             chapterNumber: newChapterNumber,
             audioFileUrl: audioFileUrl,
@@ -63,7 +66,7 @@ export const createChapter = async (req, res) => {
             success: true,
             message: "Chapter created successfully",
             novel: novel.title,
-            chapter: chapter
+            chapter: newChapter
         })
     } catch (error) {
         res.status(500).json({
