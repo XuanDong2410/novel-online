@@ -29,6 +29,10 @@ const userSchema = mongoose.Schema({
         type: Boolean,
         default: true
     },
+	searchHistory: {
+		type: Array,
+		default: [],
+	},
 }, {timestamps: true})
 
 const User = mongoose.model('User', userSchema);
