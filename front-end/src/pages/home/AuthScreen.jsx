@@ -22,7 +22,7 @@ const AuthScreen = () => {
         {/* Hero Section */}
         <div className="flex flex-col items-center justify-center text-center py-40 text-white max-w-6xl mx-auto">
             <h1 className="text-4xl md:text-6xl font-bold mb-4">
-                Unlimited movies, TV shows, and more.
+                Unlimited Novels, movies, and more.
             </h1>
             <p className="text-lg mb-4">
                 Watch anywhere. Cancel anytime.
