@@ -10,7 +10,7 @@ import { useState } from "react"
 const HomeScreen = () => {
   const {trendingContent} = useGetTrendingContent();
   const {contentType} = useContentStore();
-  const {imgLoading, setImgLoading} = useState(true);
+  const [imgLoading, setImgLoading] = useState(true);
   
   if(!trendingContent) return (
     <div className="h-screen text-white relative">
