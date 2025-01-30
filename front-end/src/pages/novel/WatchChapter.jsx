@@ -6,45 +6,14 @@ import WatchPageSkeleton from "../../components/skeletons/WatchPageSkeleton";
 
 const WatchChapter = () => {
     const { novelId, chapterId } = useParams();
-    const [loading, setLoading] = useState(true);
+    const [fetchSubtitles] = useState(null);
     const [chapter, setChapter] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [subtitles, setSubtitles] = useState([]);
     const [hoveredSentence, setHoveredSentence] = useState(null);
     const [currentSentenceIndex, setCurrentSentenceIndex] = useState(null);
     const audioRef = useRef(null);
-
-    // Fetch phụ đề VTT
-    const fetchSubtitles = async (url) => {
-        try {
-            const response = await axios.get(url);
-            const parsedSubtitles = parseSubtitles(response.data);
-            setSubtitles(parsedSubtitles);
-        } catch (err) {
-            console.error("Lỗi khi tải file phụ đề:", err);
-        }
-    };
-
-    // Parse file VTT
-    const parseSubtitles = (subtitleContent) => {
-        const lines = subtitleContent.trim().split("\n");
-        const parsedSubtitles = [];
-        let currentSubtitle = {};
-
-        for (const line of lines) {
-            if (line.includes("-->")) {
-                const [start, end] = line.split(" --> ");
-                currentSubtitle.start = timeToSeconds(start);
-                currentSubtitle.end = timeToSeconds(end);
-            } else if (line.trim() !== "") {
-                currentSubtitle.text = line.trim();
-                parsedSubtitles.push({ ...currentSubtitle });
-                currentSubtitle = {};
-            }
-        }
-
-        return parsedSubtitles;
-    };
 
     // Chuyển đổi thời gian VTT (hh:mm:ss) sang giây
     const timeToSeconds = (timeString) => {
@@ -54,6 +23,39 @@ const WatchChapter = () => {
 
     // Fetch dữ liệu chương + phụ đề
     useEffect(() => {
+        
+    // Fetch phụ đề VTT
+        const fetchSubtitles = async (url) => {
+            try {
+                const response = await axios.get(url);
+                const parsedSubtitles = parseSubtitles(response.data);
+                setSubtitles(parsedSubtitles);
+            } catch (err) {
+                console.error("Lỗi khi tải file phụ đề:", err);
+            }
+        };
+
+        // Parse file VTT
+        const parseSubtitles = (subtitleContent) => {
+            const lines = subtitleContent.trim().split("\n");
+            const parsedSubtitles = [];
+            let currentSubtitle = {};
+
+            for (const line of lines) {
+                if (line.includes("-->")) {
+                    const [start, end] = line.split(" --> ");
+                    currentSubtitle.start = timeToSeconds(start);
+                    currentSubtitle.end = timeToSeconds(end);
+                } else if (line.trim() !== "") {
+                    currentSubtitle.text = line.trim();
+                    parsedSubtitles.push({ ...currentSubtitle });
+                    currentSubtitle = {};
+                }
+            }
+
+            return parsedSubtitles;
+        };
+
         const fetchChapter = async () => {
             try {
                 const res = await axios.get(`/api/v1/chapter/${novelId}/chapters/${chapterId}`);
@@ -73,7 +75,7 @@ const WatchChapter = () => {
         };
 
         fetchChapter();
-    }, [novelId, chapterId]);
+    }, [novelId, chapterId, fetchSubtitles]);
 
     // Xử lý tua đến câu khi click
     const handleClick = (text) => {
