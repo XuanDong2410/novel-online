@@ -15,7 +15,7 @@ const Navbar = () => {
         <div className="flex items-center gap-10 z-50">
             <Link to='/'>
                 <img 
-                    src="/netflix-logo.png" 
+                    src="/logo-novel-flow-white.png" 
                     alt="" 
                     className='w-32 sm:w-40'
                 />
