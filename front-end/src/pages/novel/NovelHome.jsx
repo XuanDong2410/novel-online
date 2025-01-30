@@ -1,46 +1,58 @@
-// import axios from "axios"
-//  import { useState } from "react"
-import { useQuery} from "@tanstack/react-query"
 
+import { useEffect } from "react";
+import useGetAllNovel from "../../hooks/novel/useGetAllNovel";
 import Navbar from "../../components/Navbar";
+import { Link } from "react-router-dom";
+import { Info, Play } from "lucide-react";
 const NovelHome = () => {
-    // const [novel, setNovels] = useState([])
-    // const queryClient = useQueryClient()
+    const { allNovel, loading } = useGetAllNovel();
 
-    const {data} = useQuery({
-        queryKey: ['novels'],
-        queryFn: async () => {             // clear the existing data before fetching new data
-            try {
-                const res = await fetch(`/api/v1/novels`)                
-                const data = await res.json()
-                return data.novels
-            } catch (error) {
-                if(error.message.includes('404')){
-                    return []
-                }
-            }
-        },
-    })
-    return <div className="bg-black min-h-screen text-white">
-        <div className="mx-auto container px-4 py-8 h-full">
+    useEffect(() => {
+        console.log("Cập nhật dữ liệu:", allNovel);
+    }, [allNovel]); // Chạy khi `allNovel` thay đổi
+
+    if (loading) return <p>Loading...</p>;
+    if (!allNovel) return <p>Không có dữ liệu.</p>;
+
+    return (
+        <div className="relative h-screen text-white">
             <Navbar />
-            <h1 className="text-3xl font-bold mb-8">Novel Home</h1>
-            {/* movie details */}    
-            <div className="flex flex-col md:flex-row items-center justify-between gap-20 max-w-6xl mx-auto">
-                <div className="mb-4 md:mb-0">
-                    <h2 className="text-5xl font-bold text-balance">
-                        {data.novels}
-                    </h2>
-                    {/* <p className="mt-4 text-lg">{novel?.description}</p> */}
-                </div>
-                {/* <img 
-                    src={ORIGINAL_IMG_BASE_URL + content?.poster_path} 
-                    alt="Poster image" 
-                    className="max-h-[600px] rounded-md"
-                /> */}
+            <div 
+            className="absolute top-0 left-0 w-full h-full bg-black/50 -z-50" 
+            aria-hidden='true'
+            />
+            <div className="bg-gradient-to-b from-black via-transparent to-transparent absolute w-full h-full top-0 left-0 -z-10" />
+            <h2>Novel List</h2>
+            <div className="absolute top-0 left-0 w-full h-full flex flex-col justify-center px-8 md:px-16 lg:px-32">
+                {allNovel.map((novel) => (
+                    <>
+                        <div key={novel._id}>
+                            <p key={novel._id}>{novel.title}</p>
+                            <p><b>Tác giả:</b> {novel.author}</p>
+                            <p><b>Mô tả:</b> {novel.description}</p>
+                            <p><b>Thể loại:</b> {novel.genre.join(", ")}</p>
+                            <div className="flex mt-8">
+                                <Link 
+                                    to={`/novel/${novel._id}`}
+                                    className="bg-white hover:bg-white/80 text-black font-bold py-2 px-4 rounded mr-4 flex items-center"
+                                >
+                                    <Play className='size-6 mr-2 fill-black'/>
+                                    Read
+                                </Link>
+                                <Link 
+                                    to={`/novel/${novel._id}`}
+                                    className="bg-gray-500/70 hover:bg-gray-500 text-white py-2 px-4 rounded flex items-center"
+                                >
+                                    <Info className='size-6 mr-2'/>
+                                    More Info
+                                </Link>
+                            </div>
+                        </div>
+                    </>
+                ))}
             </div>
-    </div>
-</div>
-}
+        </div>
+    );
+};
 
-export default NovelHome
+export default NovelHome;
