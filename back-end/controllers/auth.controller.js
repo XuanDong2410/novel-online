@@ -127,3 +127,15 @@ export const logout = async (req, res) => {
         console.log("Error in logout" + error.message);
     }
 }
+export async function authCheck(req, res) {
+    try {
+        //console.log("User is here: ", req.user);
+        res.status(200).json({ success: true, user: req.user });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Internal server error",
+        });
+        console.log("Error in authCheck controller: ", error.message);
+    }
+}
