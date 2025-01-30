@@ -11,6 +11,7 @@ import WatchPage from "./pages/WatchPage"
 import SearchPage from "./pages/SearchPage"
 import SearchHistoryPage from "./pages/SearchHistoryPage"
 import NotFoundPage from "./pages/404"
+import NovelHome from "./pages/novel/NovelHome"
 function App() {
   const { user, isCheckingAuth, authCheck } = useAuthStore()
   console.log("Auth user is here: ", user) 
@@ -36,6 +37,8 @@ function App() {
         
         <Route path="/search" element={user ? <SearchPage/> : <Navigate to={"/login"} />} />
         <Route path="/history" element={user ? <SearchHistoryPage/> : <Navigate to={"/login"} />} />
+       
+        <Route path="/novel" element={user ?<NovelHome/> : <Navigate to={"/login"} />} />
 
         <Route path="/*" element={<NotFoundPage />} />
       </Routes>
