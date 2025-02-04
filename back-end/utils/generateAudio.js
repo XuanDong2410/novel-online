@@ -1,18 +1,11 @@
 import TextToSpeech from "@google-cloud/text-to-speech";
 import fs from "fs-extra";
-import { v2 as cloudinary } from "cloudinary";
 import path from "path";
-import { ENV_VARS } from "../config/envVars.js";
 import { fileURLToPath } from "url";
-
+import cloudinary from "../config/cloudinary.config.js";
 const client = new TextToSpeech.TextToSpeechClient();
 
-// Cloudinary configuration
-cloudinary.config({
-    cloud_name: ENV_VARS.CLOUDINARY_CLOUD_NAME,
-    api_key: ENV_VARS.CLOUDINARY_API_KEY,
-    api_secret: ENV_VARS.CLOUDINARY_API_SECRET,
-});
+
 // Tạo __dirname thay thế
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
