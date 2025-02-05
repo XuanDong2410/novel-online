@@ -8,7 +8,7 @@ async function startServer() {
     const app = createApp()
     configureRoutes(app);
     app.listen((PORT), () => {
-        console.log('Server is running on port 5000');
+        console.log(`Server is running on port ${PORT}`);
         connectDB();
     })
 }
