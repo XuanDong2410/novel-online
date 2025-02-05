@@ -181,3 +181,25 @@ export const deleteChapter = async (req, res) => {
         });
     }
 }
+export const getChapterById = async (req, res) => {
+    try {
+
+        const chapter = await Chapter.findById(req.params.chapterId);
+        if(!chapter) {
+            return res.status(404).json({
+                success: false,
+                message: "Chapter not found"
+            })
+        }
+        res.status(200).json({
+            success: true,
+            message: "Chapter fetched successfully",
+            data: chapter
+        })
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+}

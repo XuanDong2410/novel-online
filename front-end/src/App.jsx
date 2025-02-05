@@ -42,7 +42,7 @@ function App() {
        
         <Route path="/novel" element={user ?<NovelHome/> : <Navigate to={"/login"} />} />
         <Route path="/novel/:id" element={user ?<WatchNovelPage/> : <Navigate to={"/login"} />} />
-        <Route path="/chapter/:novelId/chapters/:chapterId" element={user ?<WatchChapterPage/> : <Navigate to={"/login"} />} />
+        <Route path="/chapter/:chapterId" element={user ?<WatchChapterPage/> : <Navigate to={"/login"} />} />
 
         <Route path="/*" element={<NotFoundPage />} />
       </Routes>

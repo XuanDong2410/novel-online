@@ -14,7 +14,8 @@ const WatchChapter = () => {
     useEffect(() => {
         const fetchChapter = async () => {
             try {
-                const res = await axios.get(`/api/v1/chapter/${novelId}/chapters/${chapterId}`);
+                //const res = await axios.get(`/api/v1/chapter/${novelId}/chapters/${chapterId}`);
+                const res = await axios.get(`/api/v1/chapter/${chapterId}`);
                 setChapter(res.data.data);
             } catch (err) {
                 setError("Có lỗi xảy ra khi tải dữ liệu chương: " + err.message);

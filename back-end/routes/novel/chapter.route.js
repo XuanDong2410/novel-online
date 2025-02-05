@@ -4,9 +4,12 @@ import {
     updateChapter, 
     getAllChaptersByNovel, 
     getChapterByNovel, 
-    deleteChapter 
+    deleteChapter, 
+    getChapterById
 } from '../../controllers/novel/chapter.controller.js';
 const router = express.Router();
+
+router.get('/:chapterId', getChapterById);
 
 router.post('/create', createChapter);
 router.put('/update/:chapter', updateChapter);
