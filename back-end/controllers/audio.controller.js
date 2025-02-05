@@ -1,4 +1,5 @@
 import { listVoices, generateAudio } from '../utils/useGoogleApi.js';
+import { processAudio } from '../utils/textToSpeech/processAudio.js';
 import Audio from '../models/audio.model.js';
 
 // Tạo một bản ghi audio mới
@@ -12,16 +13,15 @@ export const createAudio = async (req, res) => {
             "ssmlGender": "FEMALE",
             "naturalSampleRateHertz": 24000
         };
+        const path = 'https://res.cloudinary.com/dkkluqchv/video/upload/v1738755196/novels/truyen-tranh-a/chap-so-1/vi-vn-neural2-a-truyen-tranh-a-chap-so-1.mp3';
         const { text, novelName, chapterName } = req.body;
-        const newAudio = await generateAudio(text, voiceReq,novelName, chapterName);
+        //const newAudio = await generateAudio(text, voiceReq,novelName, chapterName);
+        const newVtt = await processAudio(path, novelName, chapterName);
         res.status(201).json({
             success: true,
             message: "Audio created successfully",
             data: {
-                voice: voiceReq,
-                novel: novelName,
-                chapter: chapterName,
-                audio: newAudio
+                newVtt: newVtt,  
             }
             
         });
