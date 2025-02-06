@@ -11,6 +11,6 @@ export const generate = async (content, novelName, chapterName) => {
         "naturalSampleRateHertz": 24000
     };
     const audioFileUrl = await processAudio(content, voiceReq, novelName, chapterName);
-    const subtitleFileUrl = await processVtt(audioFileUrl, novelName, chapterName);
+    const subtitleFileUrl = await processVtt(content, audioFileUrl, novelName, chapterName);
     return { audioFileUrl, subtitleFileUrl };
 };
