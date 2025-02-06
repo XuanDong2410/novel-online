@@ -2,7 +2,7 @@ import TextToSpeech from "@google-cloud/text-to-speech";
 import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
-import cloudinary from "../config/cloudinary.config.js";
+import cloudinary from "../../config/cloudinary.config.js";
 const client = new TextToSpeech.TextToSpeechClient();
 
 
