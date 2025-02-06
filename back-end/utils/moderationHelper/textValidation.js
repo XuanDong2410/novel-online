@@ -1,5 +1,5 @@
 import { LanguageServiceClient } from "@google-cloud/language";
-import { sensitiveWords } from "../utils/sensitiveWords.js";
+import { sensitiveWords } from "./sensitiveWords.js";
 // Khởi tạo Google Natural Language API client
 const client = new LanguageServiceClient();
 
