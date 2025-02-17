@@ -1,5 +1,5 @@
 import express from 'express';
-import { validate } from '../controllers/valid/valid.controller.js';
+import { validate } from '../controllers/vertification/vertification.controller.js';
 
 const router = express.Router();
 

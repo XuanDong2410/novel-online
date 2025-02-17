@@ -5,7 +5,7 @@ import {
     getTvDetails, 
     getSimilarTvs, 
     getTvsByCategory 
-} from '../controllers/tv.controller.js';
+} from '../../controllers/movie/tv.controller.js';
 const router = express.Router();
 
 router.get("/trending", getTrendingTv);

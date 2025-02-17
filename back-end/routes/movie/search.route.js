@@ -5,7 +5,7 @@ import {
     searchTV,
     getSearchHistory,
     removeItemFromSearchHistory
-} from '../controllers/search.controller.js';
+} from '../../controllers/movie/search.controller.js';
 
 const router = express.Router();
 

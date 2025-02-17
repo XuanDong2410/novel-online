@@ -4,13 +4,18 @@ import {
     updateChapter, 
     getAllChaptersByNovel, 
     getChapterByNovel, 
-    deleteChapter 
+    deleteChapter, 
+    getChapterById,
+    deleteAllChaptersByIdNovel
 } from '../../controllers/novel/chapter.controller.js';
 const router = express.Router();
 
+router.get('/:chapterId', getChapterById);
+
 router.post('/create', createChapter);
 router.put('/update/:chapter', updateChapter);
-router.get('/:novel', getAllChaptersByNovel);
+router.get('/get/:novel', getAllChaptersByNovel);
 router.get('/:novel/chapters/:chapter', getChapterByNovel);
 router.delete('/:chapter', deleteChapter);
+router.delete('/allNovel/:novel', deleteAllChaptersByIdNovel)
 export default router;

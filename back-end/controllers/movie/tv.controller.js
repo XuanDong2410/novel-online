@@ -1,4 +1,4 @@
-import { fetchFromTMDB } from '../services/tmdb.service.js';
+import { fetchFromTMDB } from '../../services/tmdb.service.js';
 export async function getTrendingTv(req, res) {
     try {
         const data = await fetchFromTMDB("https://api.themoviedb.org/3/trending/tv/day?language=en-US");

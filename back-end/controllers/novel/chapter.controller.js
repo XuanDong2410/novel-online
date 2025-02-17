@@ -1,7 +1,9 @@
 import Chapter from "../../models/novel/chapter.model.js";
 import Novel from "../../models/novel/novel.model.js";
+import { generate } from "../../utils/textToSpeech/mainTextAndSpeech.js";
+import cloudinary from '../../config/cloudinary.config.js';
 
-import { generateAudio, generateSubtitles } from "../../utils/generateAudio.js";
+//import { generateAudio, generateSubtitles } from "../../utils/backups-tests/generateAudio.js";
 
 export const createChapter = async (req, res) => {
     try {
@@ -20,8 +22,7 @@ export const createChapter = async (req, res) => {
                 message: "Please provide title and content"
             })
         }
-        const audioFileUrl  = await generateAudio(content);
-        const subtitleFileUrl = await generateSubtitles(content);
+        const {audioFileUrl, subtitleFileUrl } = await generate(content, novel.title,title);
         if (!audioFileUrl || !subtitleFileUrl) {
             throw new Error("Failed to generate audio or subtitle URLs");
         }
@@ -96,10 +97,12 @@ export const updateChapter = async (req, res) => {
     }
 }
 export const getAllChaptersByNovel = async (req, res) => {
+    const { novel } = req.params;
     try {        
-        const { novel } = req.params;
         const novelId = novel.toString()
-        const chapters = await Chapter.find({ novelId });
+        console.log(novelId);
+        const chapters = await Chapter.find({ novelId: novelId });
+        console.log("Chapter: " + chapters)
           // Kiểm tra nếu không có chương nào
           if (!chapters || chapters.length === 0) {
             return res.status(404).json({
@@ -116,7 +119,8 @@ export const getAllChaptersByNovel = async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: error.message
+            message: "Err: " + error.message,
+            novel: novel
         });
     }
 }
@@ -136,7 +140,8 @@ export const getChapterByNovel = async (req, res) => {
         if (!chapterData) {
             return res.status(404).json({
                 success: false,
-                message: "Chapter not found"
+                message: "Chapter not found",
+                novel: novel
             });
         }
 
@@ -172,6 +177,96 @@ export const deleteChapter = async (req, res) => {
             success: true,
             delete: req.params.chapter,
             message: "Chapter deleted successfully",
+            data: chapter
+        })
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+}
+const extractPublicId = (url, resourceType) => {
+    try {
+        // URL mẫu: https://res.cloudinary.com/dkkluqchv/{resourceType}/upload/v1738820121/path/to/file.mp3
+        const parts = url.split("/");
+        const index = parts.indexOf(resourceType);
+        if (index === -1 || index + 2 >= parts.length) return null;
+
+        // Lấy phần sau "upload/"
+        const publicIdWithExtension = parts.slice(index + 2).join("/");
+        return publicIdWithExtension.replace(/\.[^/.]+$/, ""); // Loại bỏ đuôi file (.mp3, .vtt, ...)
+    } catch (error) {
+        return null;
+    }
+};
+export const deleteAllChaptersByIdNovel = async (req, res) => {
+    const { novel } = req.params;
+    try {
+        const novelId = novel.toString()
+        console.log(novelId);
+        const chapters = await Chapter.find({ novelId: novelId });
+
+        if (chapters.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "No chapters found for this novel"
+            });
+        }
+
+        // Xóa tất cả file trên Cloudinary
+        for (const chapter of chapters) {
+            // Xóa file audio (video)
+            if (chapter.audioFileUrl) {
+                const publicIdAudio = extractPublicId(chapter.audioFileUrl, "video");
+                if (publicIdAudio) await cloudinary.uploader.destroy(publicIdAudio, { resource_type: "video" });
+            }
+
+            // Xóa file subtitle (raw)
+            if (chapter.subtitleFileUrl) {
+                const publicIdSubtitle = extractPublicId(chapter.subtitleFileUrl, "raw");
+                if (publicIdSubtitle) await cloudinary.uploader.destroy(publicIdSubtitle, { resource_type: "raw" });
+            }
+        }
+    //     cloudinary.v2.api
+    //     .delete_resources(['umzptpsku6pfym65cfud.vtt'], 
+    //       { type: 'upload', resource_type: 'raw' })
+    //     .then(console.log);
+    
+    //   cloudinary.v2.api
+    //     .delete_resources(['hiefoa77pfzg0dwuzwaj'], 
+    //       { type: 'upload', resource_type: 'video' })
+    //     .then(console.log);
+        // Xóa tất cả bản ghi trong database thuộc idNovel
+        const result = await Chapter.deleteMany({ novelId: novelId });
+
+        res.status(200).json({
+            success: true,
+            message: `All chapters of novel ${novelId} deleted successfully`,
+            deletedCount: result.deletedCount
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error deleting chapters",
+            error: error.message
+        });
+    }
+};
+
+export const getChapterById = async (req, res) => {
+    try {
+
+        const chapter = await Chapter.findById(req.params.chapterId);
+        if(!chapter) {
+            return res.status(404).json({
+                success: false,
+                message: "Chapter not found"
+            })
+        }
+        res.status(200).json({
+            success: true,
+            message: "Chapter fetched successfully",
             data: chapter
         })
     } catch (error) {
