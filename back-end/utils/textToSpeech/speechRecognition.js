@@ -1,4 +1,4 @@
-import fs from "fs/promises";
+import fs from "fs-extra";
 import axios from "axios";
 import speech from "@google-cloud/speech";
 
