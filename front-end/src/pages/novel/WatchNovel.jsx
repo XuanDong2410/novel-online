@@ -1,16 +1,72 @@
 import { useEffect, useState } from "react"
 import { useParams, Link } from "react-router-dom"
 import axios from "axios"
-import { ChevronLeft, ChevronRight, Play } from "lucide-react"
+ import { Play } from "lucide-react"
 import Navbar from "../../components/Navbar";
 import { ORIGINAL_IMG_BASE_URL} from "../../utils/constants"
 import { formatReleaseDate } from "../../utils/dateFunction"
  import WatchPageSkeleton from "../../components/skeletons/WatchPageSkeleton"
+import ChapterList from "../../components/novels/ChapterList";
 
+ 
+const people = [
+    {
+      name: 'Leslie Alexander',
+      email: 'leslie.alexander@example.com',
+      role: 'Co-Founder / CEO',
+      imageUrl:
+        'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+      lastSeen: '3h ago',
+      lastSeenDateTime: '2023-01-23T13:23Z',
+    },
+    {
+      name: 'Michael Foster',
+      email: 'michael.foster@example.com',
+      role: 'Co-Founder / CTO',
+      imageUrl:
+        'https://images.unsplash.com/photo-1519244703995-f4e0f30006d5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+      lastSeen: '3h ago',
+      lastSeenDateTime: '2023-01-23T13:23Z',
+    },
+    {
+      name: 'Dries Vincent',
+      email: 'dries.vincent@example.com',
+      role: 'Business Relations',
+      imageUrl:
+        'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+      lastSeen: '3h ago',
+    },
+    {
+      name: 'Lindsay Walton',
+      email: 'lindsay.walton@example.com',
+      role: 'Front-end Developer',
+      imageUrl:
+        'https://images.unsplash.com/photo-1517841905240-472988babdf9?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+      lastSeen: '3h ago',
+      lastSeenDateTime: '2023-01-23T13:23Z',
+    },
+    {
+      name: 'Courtney Henry',
+      email: 'courtney.henry@example.com',
+      role: 'Designer',
+      imageUrl:
+        'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+      lastSeen: '3h ago',
+      lastSeenDateTime: '2023-01-23T13:23Z',
+    },
+    {
+      name: 'Tom Cook',
+      email: 'tom.cook@example.com',
+      role: 'Director of Product',
+      imageUrl:
+        'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+      lastSeen: '3h ago',
+    },
+  ]
 const WatchNovel = () => {
     const { id } = useParams()
     const [novel, setNovel] = useState([])
-    const [currentNovelIdx, setCurrentNovelIdx] = useState(0)
+    // const [currentNovelIdx, setCurrentNovelIdx] = useState(0)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -29,12 +85,12 @@ const WatchNovel = () => {
         getNovels()
     }, [id])  
     
-    const handlePrev = () => {
-        if(currentNovelIdx > 0) setCurrentNovelIdx(currentNovelIdx - 1)
-    }
-    const handleNext = () => {
-        if(currentNovelIdx < novel.length - 1) setCurrentNovelIdx(currentNovelIdx + 1)
-    }
+    // const handlePrev = () => {
+    //     if(currentNovelIdx > 0) setCurrentNovelIdx(currentNovelIdx - 1)
+    // }
+    // const handleNext = () => {
+    //     if(currentNovelIdx < novel.length - 1) setCurrentNovelIdx(currentNovelIdx + 1)
+    // }
     if(loading) return (
         <div className="min-h-scree bg-black p-10">
             <WatchPageSkeleton />
@@ -52,47 +108,16 @@ const WatchNovel = () => {
 			</div>
 		);
 	}
-    console.log("Novel: ", novel)
+    //console.log("Novel: ", novel)
     return <div className="bg-black min-h-screen text-white">
         <div className="mx-auto container px-4 py-8 h-full">
-            <Navbar />
-
-            {novel.length > 0 && (
-                <div className="flex justify-between items-center mb-4">
-                    <button 
-                        className={`
-                            bg-gray-500/70 hover:bg-gray-500 text-white py-2 px-4 rounded
-                            ${currentNovelIdx === 0 ? 'opacity-50 cursor-not-allowed ' : ""}
-                            `}
-                        disabled={currentNovelIdx === 0}
-                        onClick={handlePrev}
-                    >
-                        <ChevronLeft 
-                            size={24}
-                        />
-                    </button>
-
-                    <button 
-                        className={`
-                            bg-gray-500/70 hover:bg-gray-500 text-white py-2 px-4 rounded
-                            ${currentNovelIdx === novel.length - 1 ? 'opacity-50 cursor-not-allowed ' : ""}
-                            `}
-                        disabled={currentNovelIdx === novel.length - 1}
-                        onClick={handleNext}
-                    >
-                        <ChevronRight 
-                            size={24} 
-                        />
-                    </button>
-                </div>
-            )}
+            <Navbar />          
 
             <div className="flex flex-col md:flex-row items-center justify-between gap-20 max-w-6xl mx-auto">
                 <div className="mb-4 md:mb-0" key={novel?._id}>
-                    <h2 className="text-5xl font-bold text-balance">
+                    <h2 className="text-4xl font-bold text-balance">
                         {novel?.title }
                     </h2>
-
                     <p className="mt-2 text-lg">
                         {formatReleaseDate(novel?.release_date || novel?.first_air_date)} |{" "}
                         {novel?.adult ? (
@@ -101,13 +126,15 @@ const WatchNovel = () => {
                             <span className="text-green-600">PG-13</span>
                         )}{" "}
                     </p>
+                    <img 
+                        src={ORIGINAL_IMG_BASE_URL + novel?.poster_path} 
+                        alt="Poster image" 
+                        className="max-h-[600px] rounded-md"
+                    />
+                    
                     <p className="mt-4 text-lg">{novel?.description}</p>
                 </div>
-                <img 
-                    src={ORIGINAL_IMG_BASE_URL + novel?.poster_path} 
-                    alt="Poster image" 
-                    className="max-h-[600px] rounded-md"
-                />
+                
             </div>
                 <div className="flex mt-8">
                     <Link 
@@ -119,7 +146,43 @@ const WatchNovel = () => {
                     </Link>
                 </div>
         </div>
+        <ChapterList />
     </div>
 }
 
 export default WatchNovel
+
+  
+  export function Example() {
+    return (
+      <ul role="list" className="divide-y divide-gray-100">
+        {people.map((person) => (
+          <li key={person.email} className="flex justify-between gap-x-6 py-5">
+            <div className="flex min-w-0 gap-x-4">
+              <img alt="" src={person.imageUrl} className="size-12 flex-none rounded-full bg-gray-50" />
+              <div className="min-w-0 flex-auto">
+                <p className="text-sm/6 font-semibold text-gray-900">{person.name}</p>
+                <p className="mt-1 truncate text-xs/5 text-gray-500">{person.email}</p>
+              </div>
+            </div>
+            <div className="hidden shrink-0 sm:flex sm:flex-col sm:items-end">
+              <p className="text-sm/6 text-gray-900">{person.role}</p>
+              {person.lastSeen ? (
+                <p className="mt-1 text-xs/5 text-gray-500">
+                  Last seen <time dateTime={person.lastSeenDateTime}>{person.lastSeen}</time>
+                </p>
+              ) : (
+                <div className="mt-1 flex items-center gap-x-1.5">
+                  <div className="flex-none rounded-full bg-emerald-500/20 p-1">
+                    <div className="size-1.5 rounded-full bg-emerald-500" />
+                  </div>
+                  <p className="text-xs/5 text-gray-500">Online</p>
+                </div>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  
