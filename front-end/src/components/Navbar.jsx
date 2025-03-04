@@ -22,6 +22,9 @@ const Navbar = () => {
             </Link>
             {/* desktop navbar items */}
             <div className="hidden sm:flex gap-2 items-center">
+                <Link to='/novel' className='hover:underline' onClick={() => setContentType("novel")}>
+                    Novels
+                </Link>
                 <Link to='/' className='hover:underline' onClick={() => setContentType("movie")}>
                     Movies
                 </Link>
@@ -50,6 +53,13 @@ const Navbar = () => {
 
     {isMoblieMenuOpen && (
         <div className="w-full sm:hidden mt-4 z-50 bg-black border rounded border-gray-800">
+            <Link 
+                to={"/novel"}
+                className='block hover:underline p-2'
+                onClick={toggleMoblieMenu}
+            >
+                Novels
+            </Link>
             <Link 
                 to={"/"}
                 className='block hover:underline p-2'
