@@ -15,7 +15,8 @@ export const createNovel = async (req, res) => {
             title, 
             description, 
             author, 
-            genre, 
+            genre,
+            user: req.user._id
         });
         await newNovel.save();
         res.status(201).json({
@@ -63,19 +64,36 @@ export const getNovelById = async (req, res) => {
 // TODO: need fix , search can by genre, title or author
 export const searchNovels = async (req, res) => {
     try {
-        const novels = await Novel.find({ title: { $regex: req.params.title, $options: 'i' } });
+        const keyword = req.query.keyword;
+        if (!keyword) {
+            return res.status(400).json({
+                success: false,
+                message: "Missing search keyword"
+            });
+        }
+        const regex = new RegExp(keyword, 'i'); // Không phân biệt hoa thường
+        
+        const novels = await Novel.find({
+            $or: [
+                { title: { $regex: regex } },
+                { author: { $regex: regex } },
+                { genre: { $regex: regex } }
+            ]
+        });
+
         res.status(200).json({
             success: true,
             message: "Novels fetched successfully",
             data: novels
-        })
+        });
     } catch (error) {
         res.status(500).json({
             success: false,
             message: error.message
-        })  
+        });
     }
-}
+};
+
 export const updateNovel = async (req, res) => {
     try {
         const novel = await Novel.findByIdAndUpdate(req.params.id, req.body, { new: true });
