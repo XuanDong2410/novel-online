@@ -92,6 +92,13 @@ export const login = async (req, res) => {
                 message: "Invalid credentials (password)"
             });
         }
+        
+        if (!user.isActive) {
+        return res.status(403).json({
+            success: false,
+            message: "Your account has been deactivated. Please contact support."
+        });
+        }
         generateTokenAndSetCookie(user._id, res);
         res.status(200).json({
             success: true,
