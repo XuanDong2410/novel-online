@@ -12,8 +12,12 @@ import audioRouters from '../routes/audio.route.js';
 
 import notificationRouters from '../routes/notification.route.js';
 
-import adminRouters from '../routes/admin/admin.route.js';
+import userProfileRouters from '../routes/user/profile.route.js';
+import userNovelRouters from '../routes/user/novel.user.route.js';
+
 import moderatorRouters from '../routes/admin/moderator.route.js';
+import adminRouters from '../routes/admin/admin.route.js';
+import userAdminRouters from '../routes/admin/user.admin.route.js';
 
 export function configureRoutes(app) {
     app.use(express.json());
@@ -31,7 +35,16 @@ export function configureRoutes(app) {
 
     // Notification routes
     app.use('/api/v1/notification', protectRoute, notificationRouters);
-    // Admin routes
-    app.use('/api/v2/admin', protectRoute, isAdmin, adminRouters);
+
+    // ============ USER ROUTES =================
+    // User profile routes
+    app.use('/api/v1/user/profile', protectRoute, userProfileRouters);
+    app.use('/api/v1/user/novel', protectRoute, userNovelRouters);
+    
+    // ============ MODERATOR ROUTES =================
     app.use('/api/v2/admin', protectRoute, isModerator, moderatorRouters);
+
+    // ============ ADMIN ROUTES =================
+    app.use('/api/v2/admin', protectRoute, isAdmin, adminRouters);
+    app.use('/api/v2/admin', protectRoute, isAdmin, userAdminRouters);
 }
