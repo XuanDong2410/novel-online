@@ -4,14 +4,17 @@ import {
     getAllNovels, 
     updateNovel, 
     getNovelById, 
-    deleteNovel 
+    deleteNovel,
+    searchNovels
 } from '../../controllers/novel/novel.controller.js';
 
 const router = express.Router();
 
 router.post("/create", createNovel);
 router.get("/", getAllNovels);
-//router.get("/search", searchNovels);
+
+router.get("/search", searchNovels); // Uncomment this line if you want to enable search functionality
+
 router.get("/:id", getNovelById);
 router.put("/:id", updateNovel);
 router.delete("/:id", deleteNovel);
