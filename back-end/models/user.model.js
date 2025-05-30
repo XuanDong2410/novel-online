@@ -4,12 +4,18 @@ const userSchema = new mongoose.Schema({
   username: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
+    trim: true,
+    minLength: 3,
+    maxLength: 50,
+    index: true
   },
   email: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
+    trim: true,
+    lowercase: true,
   },
   password: {
     type: String,
@@ -19,7 +25,8 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: ['user', 'moderator', 'admin'],
-    default: 'user'
+    default: 'user',
+    index: true
   },
   isActive: {
     type: Boolean,
@@ -27,58 +34,59 @@ const userSchema = new mongoose.Schema({
   },
   image: {
     type: String,
-    required: true
+    required: false,
+    maxLength: 500,
   },
-
+  bio: {
+    type: String,
+    maxLength: 500,
+  },
+  lastLogin: {
+    type: Date,
+  },
   // Truyện đã đăng
   uploadedNovels: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "Novel",
-    default: []
   }],
 
   // Báo cáo đã gửi
   reportsMade: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "Report",
-    default: []
   }],
 
   // Kháng cáo đã gửi
   appeals: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "Appeal",
-    default: []
   }],
   // Lịch sử tìm kiếm truyện
-  searchHistory: {
-    type: [String], // hoặc [mongoose.Schema.Types.ObjectId] nếu lưu ID truyện
-    default: []
-  },
+  searchHistory: [{
+    query: {
+      type: String,
+      maxLength: 200
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+  }],
 
   // Các truyện đã yêu thích
   favoriteNovels: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "Novel",
-    default: []
   }],
   // Lịch sử đánh giá truyện
   ratedNovels: [{
-    novel: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Novel"
-    },
-    rating: {
-      type: Number,
-      min: 1,
-      max: 5
-    },
-    createdAt: {
-      type: Date,
-      default: Date.now
-    }
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Rate",
   }],
-
+  notifications: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Notification', // Tham chiếu đến collection Notification
+  }],
   // Lưu trạng thái thông báo đã xem
   notificationSeenAt: {
     type: Date,
@@ -87,10 +95,10 @@ const userSchema = new mongoose.Schema({
 
   // Thống kê tóm tắt
   statistics: {
-    totalUploaded: { type: Number, default: 0 },
-    totalReports: { type: Number, default: 0 },
-    totalAppeals: { type: Number, default: 0 },
-    totalLikesReceived: { type: Number, default: 0 },
+    totalUploaded: { type: Number, default: 0, min: 0 },
+    totalReports: { type: Number, default: 0, min: 0 },
+    totalAppeals: { type: Number, default: 0, min: 0 },
+    totalLikesReceived: { type: Number, default: 0, min: 0 },
   }
 
 }, { timestamps: true });
