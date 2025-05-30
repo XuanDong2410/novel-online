@@ -26,8 +26,7 @@ export const toggleFavoriteNovel = async (req, res) => {
       await Notification.deleteMany({
         from: userId,
         to: novel.user,
-        type: 'novel',
-        message: 'favorite',
+        type: 'favorite',
         read: false
       });
 
@@ -40,8 +39,7 @@ export const toggleFavoriteNovel = async (req, res) => {
       const existingNotification = await Notification.findOne({
         from: userId,
         to: novel.user,
-        type: 'novel',
-        message: 'favorite',
+        type: 'favorite',
         read: false
       });
 
@@ -50,7 +48,8 @@ export const toggleFavoriteNovel = async (req, res) => {
           from: userId,
           to: novel.user,
           type: 'novel',
-          message: 'favorite'
+          message: `${user.username} đã yêu thích truyện "${novel.title}" của bạn.`,
+          read: false
         });
         await newNotification.save();
       }
