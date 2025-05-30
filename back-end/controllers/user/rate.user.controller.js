@@ -1,5 +1,5 @@
 import Rate from "../../models/rate.model.js";
-import Novel from "../../models/novel/novel.model.js";
+import Novel from "../../models/novel.model.js";
 // import User from "../../models/user.model.js";
 import Notification from "../../models/notification.model.js";
 

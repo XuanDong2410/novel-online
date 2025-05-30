@@ -1,5 +1,5 @@
-import Chapter from "../../models/novel/chapter.model.js";
-import Novel from "../../models/novel/novel.model.js";
+import Chapter from "../../models/chapter.model.js";
+import Novel from "../../models/novel.model.js";
 import { generate } from "../../utils/textToSpeech/mainTextAndSpeech.js";
 import cloudinary from '../../config/cloudinary.config.js';
 

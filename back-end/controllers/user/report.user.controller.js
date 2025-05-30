@@ -1,6 +1,6 @@
 import Report from "../../models/report.model.js";
 import User from "../../models/user.model.js";
-import Novel from "../../models/novel/novel.model.js";
+import Novel from "../../models/novel.model.js";
 export const createReport = async (req, res) => {
   try {
     const reporterId = req.user._id;

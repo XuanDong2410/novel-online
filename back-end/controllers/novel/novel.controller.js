@@ -1,4 +1,4 @@
-import Novel from "../../models/novel/novel.model.js";
+import Novel from "../../models/novel.model.js";
 
 import { v2 as cloudinary } from "cloudinary";
 
