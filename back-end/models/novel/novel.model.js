@@ -27,27 +27,6 @@ const novelSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }],
-    rates: [{
-        user: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
-            required: true
-        },
-        rate: {
-            type: Number,
-            required: true,
-            min: 1,
-            max: 5
-        },
-        text: {
-            type: String,
-            required: true
-        },
-        createdAt: {
-            type: Date,
-            default: Date.now
-        }
-    }],
     reports: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Report',
