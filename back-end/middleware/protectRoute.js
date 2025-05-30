@@ -20,7 +20,7 @@ export const protectRoute = async (req, res, next) => {
       });
     }
 
-    const user = await User.findById(decoded.userId).select("-password");
+    const user = await User.findById(decoded.userId).select("-password").lean();
 
     if (!user) {
       return res.status(404).json({
