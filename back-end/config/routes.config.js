@@ -13,10 +13,13 @@ import audioRouters from '../routes/audio.route.js';
 import notificationRouters from '../routes/notification.route.js';
 
 import userProfileRouters from '../routes/user/profile.route.js';
-import userNovelRouters from '../routes/user/novel.user.route.js';
+import userFavoriteRouters from '../routes/user/favorite.user.route.js';
+import userRateRouters from '../routes/user/rate.user.route.js';
+import userReportRouters from '../routes/user/report.user.route.js';
 
-import moderatorRouters from '../routes/admin/moderator.route.js';
-import adminRouters from '../routes/admin/admin.route.js';
+import moderatorRouters from '../routes/moderator/moderator.route.js';
+import moderatorReportRouters from '../routes/moderator/report.moderator.route.js';
+// import adminRouters from '../routes/admin/admin.route.js';
 import userAdminRouters from '../routes/admin/user.admin.route.js';
 
 export function configureRoutes(app) {
@@ -39,12 +42,15 @@ export function configureRoutes(app) {
     // ============ USER ROUTES =================
     // User profile routes
     app.use('/api/v1/user/profile', protectRoute, userProfileRouters);
-    app.use('/api/v1/user/novel', protectRoute, userNovelRouters);
+    app.use('/api/v1/user/favorite', protectRoute, userFavoriteRouters);
+    app.use('/api/v1/user/rate', protectRoute, userRateRouters);
+    app.use('/api/v1/user/report', protectRoute, userReportRouters);
     
     // ============ MODERATOR ROUTES =================
     app.use('/api/v2/admin', protectRoute, isModerator, moderatorRouters);
+    app.use('/api/v2/moderator/report', protectRoute, isModerator, moderatorReportRouters);
 
     // ============ ADMIN ROUTES =================
-    app.use('/api/v2/admin', protectRoute, isAdmin, adminRouters);
+
     app.use('/api/v2/admin', protectRoute, isAdmin, userAdminRouters);
 }
