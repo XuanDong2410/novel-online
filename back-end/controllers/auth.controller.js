@@ -1,46 +1,40 @@
 import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import { generateTokenAndSetCookie } from "../utils/generateToken.js";
+import { validateSignup, validateLogin } from "../utils/validator.js";
 export const signup = async (req, res) => {
     try {
         const { email, password, username } = req.body;
-        if(!email || !password || !username) {
-            return res.status(400).json({
-                success: false,
-                message: "Please fill all fields"
-            });
+        // Validate input
+        const { error } = validateSignup(req.body);
+        if (error) {
+            return res.status(400).json({ success: false, message: error.details[0].message });
         }
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if(!emailRegex.test(email)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid email"
-            });
-        }
-        if(password.length < 6) {
-            return res.status(400).json({
-                success: false,
-                message: "Password must be at least 6 characters"
-            });
-        }
-        const existingUserByEmail = await User.findOne({ email: email });
+        const existingUserByEmail = await User.findOne({ email: email }).lean();
+        // Use .lean() to return a plain JavaScript object instead of a Mongoose document
         if(existingUserByEmail) {
             return res.status(400).json({
                 success: false,
                 message: "Email already exists"
             });
         }
-        const existingUserByUsername = await User.findOne({ username: username });
+        const existingUserByUsername = await User.findOne({ username: username }).lean();
+        // Use .lean() to return a plain JavaScript object instead of a Mongoose document
         if(existingUserByUsername) {
             return res.status(400).json({
                 success: false,
                 message: "Username already exists"
             });
         }
+        // Hash the password
+        // Use bcrypt to hash the password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Generate a random profile picture
         const PROFILE_PICS = ["/avatar1.png", "/avatar2.png", "/avatar3.png"];
         const image = PROFILE_PICS[Math.floor(Math.random() * PROFILE_PICS.length)];
+
         const newUser = new User({
             username: username,
             email: email,
@@ -54,7 +48,7 @@ export const signup = async (req, res) => {
                 success: true,
                 message: "User created successfully",
                 user: {
-                    ...newUser._doc,
+                    ...newUser.toObject(), // Convert Mongoose document to plain object
                     password: "",
                 },
             })
@@ -72,13 +66,15 @@ export const signup = async (req, res) => {
 export const login = async (req, res) => {
     try {
         const {email, password } = req.body;
-        if (!email || !password) {
-            return res.status(400).json({
-                success: false,
-                message: "Please fill all fields"
-            });
+
+        // Validate input
+        const { error } = validateLogin(req.body);
+        if (error) {
+            return res.status(400).json({ success: false, message: error.details[0].message });
         }
-        const user = await User.findOne({ email: email });
+    
+        const user = await User.findOne({ email: email }).select("+password").lean();
+        // Use .lean() to return a plain JavaScript object instead of a Mongoose document
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -92,19 +88,23 @@ export const login = async (req, res) => {
                 message: "Invalid credentials (password)"
             });
         }
-        
+        // Kiểm tra xem người dùng có bị khóa hay không
         if (!user.isActive) {
-        return res.status(403).json({
-            success: false,
-            message: "Your account has been deactivated. Please contact support."
-        });
+            return res.status(403).json({
+                success: false,
+                message: "Your account has been deactivated. Please contact support."
+            });
         }
+        // Cập nhật lastLogin
+        await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
+
+        // Generate token and set cookie
         generateTokenAndSetCookie(user._id, res);
         res.status(200).json({
             success: true,
             message: "User logged in successfully",
             user: {
-                ...user._doc,
+                ...user,
                 password: "",
             }
         })
