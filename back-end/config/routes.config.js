@@ -10,12 +10,16 @@ import audioRouters from '../routes/audio.route.js';
 
 import notificationRouters from '../routes/notification.route.js';
 
+import userNovelRouters from '../routes/user/novel.user.route.js';
+import userChapterRouters from '../routes/user/chapter.user.route.js';
+// User-specific routes
+
 import userProfileRouters from '../routes/user/profile.route.js';
 import userFavoriteRouters from '../routes/user/favorite.user.route.js';
 import userRateRouters from '../routes/user/rate.user.route.js';
 import userReportRouters from '../routes/user/report.user.route.js';
 
-import moderatorRouters from '../routes/moderator/moderator.route.js';
+import moderatorNovelRouters from '../routes/moderator/novel.moderator.route.js';
 import moderatorReportRouters from '../routes/moderator/report.moderator.route.js';
 // import adminRouters from '../routes/admin/admin.route.js';
 import userAdminRouters from '../routes/admin/user.admin.route.js';
@@ -28,7 +32,8 @@ export function configureRoutes(app) {
 
     // Người dùng bình thường
     app.use('/api/v1/audio', audioRouters);
-    
+    app.use('/api/v1/novel', protectRoute, novelRouters);
+    app.use('/api/v1/chapter', protectRoute, chapterRouters);
     // Notification routes
     app.use('/api/v1/notification', protectRoute, notificationRouters);
     
@@ -38,8 +43,8 @@ export function configureRoutes(app) {
     app.use('/api/v1/user/profile', protectRoute, userProfileRouters);
 
     // Novel and chapter routes
-    app.use('/api/v1/novel', protectRoute, novelRouters);
-    app.use('/api/v1/chapter', protectRoute, chapterRouters);
+    app.use('/api/v1/user/novel', protectRoute, userNovelRouters);
+    app.use('/api/v1/user/chapter', protectRoute, userChapterRouters);
 
     // User-specific routes
     app.use('/api/v1/user/favorite', protectRoute, userFavoriteRouters);
@@ -47,7 +52,7 @@ export function configureRoutes(app) {
     app.use('/api/v1/user/report', protectRoute, userReportRouters);
     
     // ============ MODERATOR ROUTES =================
-    app.use('/api/v2/admin', protectRoute, isModerator, moderatorRouters);
+    app.use('/api/v2/moderator/novel', protectRoute, isModerator, moderatorNovelRouters);
     app.use('/api/v2/moderator/report', protectRoute, isModerator, moderatorReportRouters);
 
     // ============ ADMIN ROUTES =================
