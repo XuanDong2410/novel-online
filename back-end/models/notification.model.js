@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const notificationSchema = mongoose.Schema({
+const notificationSchema = new mongoose.Schema({
     from: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
@@ -13,10 +13,6 @@ const notificationSchema = mongoose.Schema({
     },
     type: {
         type: String,
-        required: true
-    },
-    message: {
-        type: String,
         required: true,
         enum: [
             'favorite',
@@ -28,6 +24,11 @@ const notificationSchema = mongoose.Schema({
             'novelUpdate',
             'adminNotice'
         ]
+    },
+    message: {
+        type: String,
+        required: false,
+
     },
     read: {
         type: Boolean,
