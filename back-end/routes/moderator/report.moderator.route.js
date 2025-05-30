@@ -4,7 +4,7 @@ import {
   getHandledReports,
   getReportById,
   handleReport
-} from "../../controllers/admin/report.moderator.controller.js";
+} from "../../controllers/moderator/report.moderator.controller.js";
 import { isModerator } from '../../middleware/isAdmin.js';
 import { protectRoute } from '../../middleware/protectRoute.js';
 
