@@ -1,0 +1,15 @@
+export const MODERATION_ACTIONS = {
+  approve: 'approve',
+  reject: 'reject',
+  requestEdit: 'requestEdit',
+  flag: 'flag',
+  ban: 'ban',
+  unBan: 'unBan',
+  hide: 'hide',
+  notice: 'notice',
+  systemBan: 'systemBan',
+  systemFlag: 'systemFlag',
+  systemNotice: 'systemNotice',
+  report: 'report',
+  appeal: 'appeal',
+};
