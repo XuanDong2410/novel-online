@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-
+import { handleViolationThreshold } from "../utils/moderation/moderationActionHandler.js";
 const userSchema = new mongoose.Schema({
   username: {
     type: String,
@@ -24,13 +24,17 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['user', 'moderator', 'admin'],
+    enum: ['user', 'moderator', 'admin', 'system'],
     default: 'user',
     index: true
   },
   isActive: {
     type: Boolean,
     default: true
+  },
+  isBanned: {
+    type: Boolean,
+    default: false
   },
   image: {
     type: String,
@@ -55,7 +59,26 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "Report",
   }],
-
+  violation: {
+      userReports: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      modConfirmed: {
+        type: Boolean,
+        default: false,
+      },
+      details: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null
+      },
+      count: {
+        type: Number,
+        default: 0,
+        min: 0,
+      }
+  },
   // Kháng cáo đã gửi
   appeals: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -102,6 +125,22 @@ const userSchema = new mongoose.Schema({
   }
 
 }, { timestamps: true });
+
+// Middleware post-save để kiểm tra violationCount
+userSchema.post("save", async function (doc, next) {
+  try {
+    if (doc.violation.count > 0) { // Chỉ kiểm tra nếu violationCount đã tăng
+      const result = await handleViolationThreshold(doc._id, doc.violation.count);
+      if (!result.success) {
+        console.error("Lỗi khi kiểm tra ngưỡng vi phạm:", result.error);
+      }
+    }
+    next();
+  } catch (error) {
+    console.error("Lỗi trong middleware post-save:", error);
+    next(error);
+  }
+});
 
 const User = mongoose.model("User", userSchema);
 
