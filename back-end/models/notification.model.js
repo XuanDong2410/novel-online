@@ -4,7 +4,8 @@ const notificationSchema = new mongoose.Schema({
     from: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        required: true
+        required: true,
+        default: null
     },
     to: {
         type: mongoose.Schema.Types.ObjectId,
@@ -22,7 +23,8 @@ const notificationSchema = new mongoose.Schema({
             'reply',
             'report',
             'novelUpdate',
-            'adminNotice'
+            'adminNotice',
+            'systemNotice',
         ]
     },
     message: {
