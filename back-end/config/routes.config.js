@@ -21,6 +21,7 @@ import userReportRouters from '../routes/user/report.user.route.js';
 
 import moderatorNovelRouters from '../routes/moderator/novel.moderator.route.js';
 import moderatorReportRouters from '../routes/moderator/report.moderator.route.js';
+import moderatorLogRouters from '../routes/moderator/log.moderator.route.js';
 // import adminRouters from '../routes/admin/admin.route.js';
 import userAdminRouters from '../routes/admin/user.admin.route.js';
 
@@ -54,6 +55,7 @@ export function configureRoutes(app) {
     // ============ MODERATOR ROUTES =================
     app.use('/api/v2/moderator/novel', protectRoute, isModerator, moderatorNovelRouters);
     app.use('/api/v2/moderator/report', protectRoute, isModerator, moderatorReportRouters);
+    app.use('/api/v2/moderator/log', protectRoute, isModerator, moderatorLogRouters);
 
     // ============ ADMIN ROUTES =================
 
