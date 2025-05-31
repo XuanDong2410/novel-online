@@ -1,7 +1,7 @@
 
 import { createApp, PORT } from './config/app.config.js';
 import { configureRoutes } from './config/routes.config.js';
-import { connectDB } from './config/db.js';
+import { connectDB } from './config/db.config.js';
 
 
 async function startServer() {

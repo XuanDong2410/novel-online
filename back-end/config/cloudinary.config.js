@@ -1,6 +1,6 @@
 // cloudinaryConfig.js
 import { v2 as cloudinary } from "cloudinary";
-import { ENV_VARS } from "../config/envVars.js";
+import { ENV_VARS } from "./envVars.config.js";
 
 // Cloudinary configuration
 cloudinary.config({
