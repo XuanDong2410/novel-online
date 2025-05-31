@@ -5,5 +5,5 @@ import { protectRoute } from "../../middleware/protectRoute.js";
 const router = express.Router();
 
 router.post("/create", protectRoute, createNovel);
-router.post("/request-publish", protectRoute, requestPublish);
+router.post("/:id/request-publish", protectRoute, requestPublish);
 export default router;
