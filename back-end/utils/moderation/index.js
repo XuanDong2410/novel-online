@@ -1,4 +1,4 @@
-import openai from "../../config/openaiClient.js";
+import openai from "../../config/openai.config.js";
 import limit from "./rateLimiter.js";
 import { getViolationLabels } from "./categoryLabel.js";
 import { getCachedModeration, setCachedModeration } from "./cache.js";
