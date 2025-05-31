@@ -1,14 +1,6 @@
 import dotenv from 'dotenv';
-import path from 'path';
-
 
 dotenv.config();
-
-// const googleCredentialsPath = path.resolve(
-//     process.cwd(), // Thư mục gốc nơi bạn chạy ứng dụng
-//     process.env.GOOGLE_APPLICATION_CREDENTIALS
-// );
-//process.env.GOOGLE_APPLICATION_CREDENTIALS = "/path/to/your/file.json";
 
 export const ENV_VARS = {
     MONGO_URI: process.env.MONGO_URI,
@@ -21,4 +13,5 @@ export const ENV_VARS = {
     GOOGLE_APPLICATION_CREDENTIALS: process.env.GOOGLE_APPLICATION_CREDENTIALS,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     NOVEL_OPENAI_API_KEY: process.env.NOVEl_OPENAI_API_KEY,
+    RATE_LIMIT: 10,
 }
