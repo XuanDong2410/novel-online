@@ -11,8 +11,8 @@ const router = express.Router();
 
 router.get('/', getPendingNovels);
 router.get('/:id', getNovelWithChapters);
-router.post('/:id/approve', approveNovelAndChapters);
-router.post('/:id/reject', rejectNovel);
+router.patch('/:id/approve', approveNovelAndChapters);
+router.patch('/:id/reject', rejectNovel);
 router.patch('/:id/hide-toggle', toggleHideNovel);
 
 
