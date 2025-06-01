@@ -53,7 +53,7 @@ const novelSchema = new mongoose.Schema({
      // ✅ Thêm để quản lý và kiểm duyệt
     statusPublish: {
         type: String,
-        enum: ['draft', 'pending', 'approved', 'rejected'],
+        enum: ['draft', 'pending', 'editing', 'warning', 'approved', 'rejected'],
         default: 'draft',
         index: true // Tạo chỉ mục cho trường statusPublish để tăng tốc độ truy vấn
     },
@@ -91,14 +91,29 @@ const novelSchema = new mongoose.Schema({
         min: 0,
         max: 5 // Đảm bảo giá trị của averageRating trong khoảng từ 0 đến 5
     },
-    // ✅ Gắn cờ bởi AI
-    aiViolationFlag: {
-        type: Boolean,
-        default: false,        
-    },
-    aiViolationDetails: {
-        type: String,
-        maxlength: 1000 // Giới hạn độ dài mô tả vi phạm
+    violation: {
+        aiFlag: {
+          type: Boolean,
+          default: false,
+        },
+        userReports: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+        modConfirmed: {
+          type: Boolean,
+          default: false,
+        },
+        details: {
+          type: mongoose.Schema.Types.Mixed,
+          default: null
+        },
+        count: {
+          type: Number,
+          default: 0,
+          min: 0,
+        }
     },
     coverImage: {
         type: String,

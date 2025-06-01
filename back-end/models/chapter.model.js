@@ -11,7 +11,7 @@ const chapterSchema = new mongoose.Schema({
   content: {
     type: String,
     required: true,
-    maxlength: 1000000, // Giới hạn độ dài nội dung chương
+    maxlength: 100000, // Giới hạn độ dài nội dung chương
   },
   contentUrl: {
     type: String,
@@ -40,9 +40,13 @@ const chapterSchema = new mongoose.Schema({
   // ✅ Trạng thái kiểm duyệt
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected'],
+    enum: ['draft', 'pending', 'editing', 'warning', 'approved', 'rejected'],
     default: 'pending',
     index: true, // Tạo chỉ mục cho trường status để tăng tốc độ truy vấn
+  },
+  isPublished: {
+    type: Boolean,
+    default: false,
   },
   publishDate: {
     type: Date, // Ngày xuất bản 
@@ -53,14 +57,29 @@ const chapterSchema = new mongoose.Schema({
     ref: 'Report',
   }],
 
-  // ✅ Gắn cờ bởi AI
-  aiViolationFlag: {
-    type: Boolean,
-    default: false,
-  },
-  aiViolationDetails: {
-    type: String,
-    maxlength: 1000, // Giới hạn độ dài mô tả vi phạm
+  violation: {
+    aiFlag: {
+      type: Boolean,
+      default: false,
+    },
+    userReports: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    modConfirmed: {
+      type: Boolean,
+      default: false,
+    },
+    details: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
+    },
+    count: {
+      type: Number,
+      default: 0,
+      min: 0,
+    }
   },
 
   // ✅ Thống kê
