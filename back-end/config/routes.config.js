@@ -10,20 +10,26 @@ import audioRouters from '../routes/audio.route.js';
 
 import notificationRouters from '../routes/notification.route.js';
 
-import userNovelRouters from '../routes/user/novel.user.route.js';
-import userChapterRouters from '../routes/user/chapter.user.route.js';
+//============ import userRouters ================
+import novelUserRouters from '../routes/user/novel.user.route.js';
+import chapterUserRouters from '../routes/user/chapter.user.route.js';
 // User-specific routes
+import profileUserRouters from '../routes/user/profile.route.js';
+import favoriteUserRouters from '../routes/user/favorite.user.route.js';
+import rateUserRouters from '../routes/user/rate.user.route.js';
+import reportUserRouters from '../routes/user/report.user.route.js';
+import appealUserRouters from '../routes/user/appeal.user.route.js';
 
-import userProfileRouters from '../routes/user/profile.route.js';
-import userFavoriteRouters from '../routes/user/favorite.user.route.js';
-import userRateRouters from '../routes/user/rate.user.route.js';
-import userReportRouters from '../routes/user/report.user.route.js';
-
+//============ import moderatorRouters ================
 import moderatorNovelRouters from '../routes/moderator/novel.moderator.route.js';
+import moderatorChapterRouters from '../routes/moderator/chapter.moderator.route.js';
 import moderatorReportRouters from '../routes/moderator/report.moderator.route.js';
 import moderatorLogRouters from '../routes/moderator/log.moderator.route.js';
+
+//============ import adminRouters ================
 // import adminRouters from '../routes/admin/admin.route.js';
 import userAdminRouters from '../routes/admin/user.admin.route.js';
+import appealAdminRouters from '../routes/admin/appeal.admin.route.js';
 
 export function configureRoutes(app) {
     app.use(express.json());
@@ -41,23 +47,26 @@ export function configureRoutes(app) {
     // ============ USER ROUTES =================
 
     // User profile routes
-    app.use('/api/v1/user/profile', protectRoute, userProfileRouters);
+    app.use('/api/v1/user/profile', protectRoute, profileUserRouters);
 
     // Novel and chapter routes
-    app.use('/api/v1/user/novel', protectRoute, userNovelRouters);
-    app.use('/api/v1/user/chapter', protectRoute, userChapterRouters);
+    app.use('/api/v1/user/novel', protectRoute, novelUserRouters);
+    app.use('/api/v1/user/chapter', protectRoute, chapterUserRouters);
 
     // User-specific routes
-    app.use('/api/v1/user/favorite', protectRoute, userFavoriteRouters);
-    app.use('/api/v1/user/rate', protectRoute, userRateRouters);
-    app.use('/api/v1/user/report', protectRoute, userReportRouters);
+    app.use('/api/v1/user/favorite', protectRoute, favoriteUserRouters);
+    app.use('/api/v1/user/rate', protectRoute, rateUserRouters);
+    app.use('/api/v1/user/report', protectRoute, reportUserRouters);
+    app.use('/api/v1/user/appeal', protectRoute, appealUserRouters);
     
     // ============ MODERATOR ROUTES =================
     app.use('/api/v2/moderator/novel', protectRoute, isModerator, moderatorNovelRouters);
+    app.use('/api/v2/moderator/chapter', protectRoute, isModerator, moderatorChapterRouters);
     app.use('/api/v2/moderator/report', protectRoute, isModerator, moderatorReportRouters);
     app.use('/api/v2/moderator/log', protectRoute, isModerator, moderatorLogRouters);
 
     // ============ ADMIN ROUTES =================
 
-    app.use('/api/v2/admin', protectRoute, isAdmin, userAdminRouters);
+    app.use('/api/v2/admin/user', protectRoute, isAdmin, userAdminRouters);
+    app.use('/api/v2/admin/appeal', protectRoute, isAdmin, appealAdminRouters);
 }
