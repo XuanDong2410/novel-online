@@ -3,7 +3,7 @@ import Novel from "../../models/novel.model.js";
 // import User from "../../models/user.model.js";
 import Notification from "../../models/notification.model.js";
 
-export const addOrUpdateRate = async (req, res) => {
+export const createOrUpdateRate = async (req, res) => {
   try {
     const { novelId } = req.params;
     const { rate, text } = req.body;
