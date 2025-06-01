@@ -68,6 +68,134 @@ export const createNovel = async (req, res) => {
     });
   }
 };
+export const viewMyNovels = async (req, res) => {
+  
+}
+export const viewMyNovelById = async (req, res) => {
+  
+}
+/**
+ * Update a novel (only if in editable state)
+ * @async
+ * @param {Object} req - Express request object
+ * @param {string} req.params.id - Novel ID
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.title - Novel title
+ * @param {string} req.body.description - Novel description
+ * @param {Object} req.user - Authenticated user object
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} JSON response confirming update
+ */
+export const updateNovel = async (req, res) => {
+  try {
+    const novelId = await validateId(req.params.id, res);
+    if (!novelId) return;
+
+    const { title, description } = req.body;
+    const schema = Joi.object({
+      title: Joi.string().max(200).required().messages({
+        "string.max": "Tiêu đề không được vượt quá 200 ký tự",
+        "any.required": "Tiêu đề là bắt buộc",
+      }),
+      description: Joi.string().max(2000).optional().messages({
+        "string.max": "Mô tả không được vượt quá 2000 ký tự",
+      }),
+    });
+    const { error } = schema.validate({ title, description });
+    if (error) {
+      return errorHandler(null, error.details[0].message, res, 400);
+    }
+
+    return await withTransaction(async (session) => {
+      const novel = await Novel.findById(novelId);
+      const novelCheck = validateNovel(novel, session);
+      if (!novelCheck.valid) {
+        return errorHandler(null, novelCheck.message, res, 400);
+      }
+      if (!["pending", "editing", "draft"].includes(novel.statusPublish)) {
+        return errorHandler(null, "Truyện không ở trạng thái cho phép chỉnh sửa", res, 400);
+      }
+      if (novel.createdBy.toString() !== req.user._id.toString() && !["moderator", "admin"].includes(req.user.role)) {
+        return errorHandler(null, "Không có quyền chỉnh sửa truyện", res, 403);
+      }
+
+      novel.title = title;
+      if (description) novel.description = description;
+      novel.updatedAt = new Date();
+      await novel.save({ session });
+
+      const result = await moderationActionHandler({
+        action: MODERATION_ACTIONS.notice,
+        novelId: novel._id,
+        moderatorId: req.user._id,
+        recipientId: novel.createdBy,
+        message: `Truyện ${novel.title} đã được cập nhật bởi ${req.user.username}`,
+        logNote: `Cập nhật thông tin truyện ${novel.title}`,
+      });
+
+      if (!result.success) throw new Error(result.message);
+
+      await session.commitTransaction();
+      res.status(200).json({ success: true, message: "Truyện đã được cập nhật" });
+    });
+  } catch (error) {
+    const message = "Lỗi khi cập nhật truyện";
+    return errorHandler(error, message, res, 500);
+  }
+};
+
+export const updateNovelCover = async (req, res) => {
+  
+}
+/**
+ * Delete a novel (only if in editable state)
+ * @async
+ * @param {Object} req - Express request object
+ * @param {string} req.params.id - Novel ID
+ * @param {Object} req.user - Authenticated user object
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} JSON response confirming deletion
+ */
+export const deleteNovel = async (req, res) => {
+  try {
+    const novelId = await validateId(req.params.id, res);
+    if (!novelId) return;
+
+    return await withTransaction(async (session) => {
+      const novel = await Novel.findById(novelId);
+      const novelCheck = validateNovel(novel, session);
+      if (!novelCheck.valid) {
+        return errorHandler(null, novelCheck.message, res, 400);
+      }
+      if (!["pending", "editing", "draft"].includes(novel.statusPublish)) {
+        return errorHandler(null, "Truyện không ở trạng thái cho phép xóa", res, 400);
+      }
+      if (novel.createdBy.toString() !== req.user._id.toString() && !["moderator", "admin"].includes(req.user.role)) {
+        return errorHandler(null, "Không có quyền xóa truyện", res, 403);
+      }
+
+      await Chapter.deleteMany({ novelId: novel._id }, { session });
+      await novel.deleteOne({ session });
+
+      const result = await moderationActionHandler({
+        action: MODERATION_ACTIONS.notice,
+        novelId: novel._id,
+        moderatorId: req.user._id,
+        recipientId: novel.createdBy,
+        message: `Truyện ${novel.title} đã bị xóa bởi ${req.user.username}`,
+        logNote: `Xóa truyện ${novel.title}`,
+      });
+
+      if (!result.success) throw new Error(result.message);
+
+      await session.commitTransaction();
+      res.status(200).json({ success: true, message: "Truyện đã bị xóa" });
+    });
+  } catch (error) {
+    const message = "Lỗi khi xóa truyện";
+    return errorHandler(error, message, res, 500);
+  }
+};
 
 export const requestPublish = async (req, res) => {
   try {
@@ -111,3 +239,17 @@ export const requestPublish = async (req, res) => {
     });
   }
 };
+
+export const cancelRequestPublish = async (req, res) => {
+  
+}
+export const resubmitNovel = async (req, res) => {
+  
+}
+export const hideNovel = async (req, res) => {
+  
+}
+
+export const getNovelStats = async (req, res) => {
+  
+}
