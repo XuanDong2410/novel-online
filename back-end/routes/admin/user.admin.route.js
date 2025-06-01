@@ -1,33 +1,33 @@
 import express from 'express';
-import { isAdmin } from '../../middleware/isAdmin.js';
-import { protectRoute } from '../../middleware/protectRoute.js';
 
 // Ví dụ: import các controller admin
 import { 
     getAllUsers,
     getUserById,
+    getUserActivityLogsById,
     updateUserRoleById,
     toggleUserStatus,
+    toggleBanUser,
     deleteUserById,
     getUserStatisticsById
  } from '../../controllers/admin/user.admin.controller.js';
 
 const router = express.Router();
 
-router.use(protectRoute, isAdmin);
 
-router.get('/users', getAllUsers);
-router.get('/users/:id', getUserById);
+router.get('/', getAllUsers);
+router.get('/:id', getUserById);
 
-router.get('/users/:id/statistics', getUserStatisticsById);
+router.get('/:id/activity-logs', getUserActivityLogsById);
+router.get('/:id/statistics', getUserStatisticsById);
 
 // API cập nhật vai trò người dùng
-router.put('/users/:id/role', updateUserRoleById);
+router.put('/:id/role', updateUserRoleById);
 
 // API bật / tắt hoạt động người dùng
-router.patch('/users/:id/active', toggleUserStatus);
-
+router.patch('/:id/active', toggleUserStatus);
+router.patch('/:id/ban', toggleBanUser);
 // API xóa người dùng
-router.delete('/users/:id', deleteUserById);
+router.delete('/:id', deleteUserById);
 
 export default router;

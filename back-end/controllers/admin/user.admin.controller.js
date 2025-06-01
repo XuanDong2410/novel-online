@@ -117,3 +117,11 @@ export const getUserStatisticsById = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch statistics', error: error.message });
   }
 };
+
+export const getUserActivityLogsById = async (req, res) => {
+  //TODO:
+}
+
+export const toggleBanUser = async (req, res) => {
+  //TODO:
+}
