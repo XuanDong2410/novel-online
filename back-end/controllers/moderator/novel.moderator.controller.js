@@ -514,6 +514,9 @@ export const viewNovelForEdit = async (req, res) => {
   }
 };
 
+export const getApprovedNovelsHaSPendingChapters = async (req, res) => {
+  //TODO: get approved novels has pending chapters
+}
 export const toggleHideNovel = async (req, res) => {
   //TODO: merge func hide and unhide
 }

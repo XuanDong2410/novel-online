@@ -1,6 +1,7 @@
 import express from 'express';
 import { 
     getPendingNovels,
+    getApprovedNovelsHaSPendingChapters,
     getNovelWithChapters,
     approveNovelAndChapters,
     rejectNovel,
@@ -9,7 +10,8 @@ import {
 
 const router = express.Router();
 
-router.get('/', getPendingNovels);
+router.get('/pending', getPendingNovels);
+router.get('/approved-with-pending-chapters', getApprovedNovelsHaSPendingChapters);
 router.get('/:id', getNovelWithChapters);
 router.patch('/:id/approve', approveNovelAndChapters);
 router.patch('/:id/reject', rejectNovel);
