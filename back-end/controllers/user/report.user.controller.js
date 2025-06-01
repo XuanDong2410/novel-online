@@ -78,6 +78,9 @@ export const getMyReports = async (req, res) => {
   }
 };
 
+export const deleteReport = async (req, res) => {
+  //TODO: need merge unread and handled report
+}
 export const deleteUnreadReport = async (req, res) => {
   try {
     const { reportId } = req.params;
