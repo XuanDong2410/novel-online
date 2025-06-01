@@ -47,7 +47,9 @@ export const updateProfile = async (req, res) => {
 };
 //TODO: Cập nhật ảnh đại diện
 // Cập nhật ảnh đại diện (image)
-
+export const updateAvatar = async (req, res) => {
+  
+}
 // Đổi mật khẩu
 export const changePassword = async (req, res) => {
   try {
@@ -69,18 +71,5 @@ export const changePassword = async (req, res) => {
   } catch (err) {
     console.error('Error changing password:', err);
     res.status(500).json({ success: false, message: 'Change password failed' });
-  }
-};
-export const getFavoriteNovels = async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id).populate("favoriteNovels");
-
-    return res.status(200).json({
-      success: true,
-      novels: user.favoriteNovels
-    });
-  } catch (err) {
-    console.error("Get favorite novels error:", err);
-    return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
