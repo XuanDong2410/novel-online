@@ -81,3 +81,16 @@ export const getUsersWhoFavoriteNovel = async (req, res) => {
     return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
+export const viewFavoriteNovels = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).populate("favoriteNovels");
+
+    return res.status(200).json({
+      success: true,
+      novels: user.favoriteNovels
+    });
+  } catch (err) {
+    console.error("Get favorite novels error:", err);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};

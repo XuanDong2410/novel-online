@@ -1,15 +1,13 @@
 import express from "express";
-import { protectRoute } from '../../middleware/protectRoute.js';
 import {
   toggleFavoriteNovel,
-  getUsersWhoFavoriteNovel
+  viewFavoriteNovels
 } from "../../controllers/user/favorite.user.controller.js";
 
 
 const router = express.Router();
 
-router.use(protectRoute);
-router.put("/:novelId", protectRoute, toggleFavoriteNovel);
-router.get("/:novelId/favoriteUsers", protectRoute, getUsersWhoFavoriteNovel);
+router.put("/:novelId", toggleFavoriteNovel);
+router.get("/", viewFavoriteNovels);
 
 export default router;
