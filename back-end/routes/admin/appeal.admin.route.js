@@ -5,6 +5,7 @@ import {
   approveAppeal,
   rejectAppeal,
   deleteAppealById,
+  getAppealStats
 } from "../../controllers/admin/appeal.admin.controller.js"
 const router = express.Router();
 
@@ -15,5 +16,5 @@ router.patch('/:appealId/approve', approveAppeal);
 router.patch('/:appealId/reject', rejectAppeal);
 
 router.delete('/:appealId', deleteAppealById);
-
+router.get('/stats', getAppealStats);
 export default router;
