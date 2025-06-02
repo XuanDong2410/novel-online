@@ -54,20 +54,20 @@ export const validateModerationInput = (noteCheck, novelCheck, res) => {
     !("message" in noteCheck) ||
     !("message" in novelCheck)
   ) {
-    return errorHandler(null, "Dữ liệu kiểm tra không hợp lệ", res, 400);
+    return sendErrorResponse(null, "Dữ liệu kiểm tra không hợp lệ", res, 400);
   }
   // Kiểm tra tính hợp lệ của noteCheck và novelCheck
   if (!noteCheck.valid || !novelCheck.valid) {
     const message =
       [noteCheck.message, novelCheck.message].filter(Boolean).join(". ") ||
       "Dữ liệu không hợp lệ";
-    return errorHandler(null, message, res, 400);
+    return sendErrorResponse(null, message, res, 400);
   }
   return true;
 };
 export function validateId(id, res) {
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    return errorHandler(null, "ID không hợp lệ", res, 400);
+    return sendErrorResponse(null, "ID không hợp lệ", res, 400);
   }
   return id;
 }
