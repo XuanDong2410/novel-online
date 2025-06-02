@@ -1,7 +1,7 @@
 import express from "express"
 import cookieParser from "cookie-parser"
 import bodyParser from "body-parser"
-import { ENV_VARS } from "./envVars.config.js"
+import { ENV_VARS } from "./env.config.js"
 
 export function createApp(){
     const app = express()

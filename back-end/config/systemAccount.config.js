@@ -1,7 +1,7 @@
 // Tạo tài khoản hệ thống khi khởi động
 import User from '../models/user.model.js';
 import bcrypt from "bcryptjs";
-import { ENV_VARS } from './envVars.config.js';
+import { ENV_VARS } from './env.config.js';
 // Biến toàn cục để lưu _id của tài khoản hệ thống
 let systemUserId = null;
 
