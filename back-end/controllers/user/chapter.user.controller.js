@@ -173,23 +173,23 @@ export const updateChapter = async (req, res) => {
     });
     const { error } = schema.validate({ title, content });
     if (error) {
-      return errorHandler(null, error.details[0].message, res, 400);
+      return sendErrorResponse(null, error.details[0].message, res, 400);
     }
 
     return await withTransaction(async (session) => {
       const chapter = await Chapter.findById(chapterId);
       if (!chapter) {
-        return errorHandler(null, "Không tìm thấy chương", res, 404);
+        return sendErrorResponse(null, "Không tìm thấy chương", res, 404);
       }
       if (!["pending", "editing", "draft"].includes(chapter.status)) {
-        return errorHandler(null, "Chương không ở trạng thái cho phép chỉnh sửa", res, 400);
+        return sendErrorResponse(null, "Chương không ở trạng thái cho phép chỉnh sửa", res, 400);
       }
       const novel = await Novel.findById(chapter.novelId);
       if (!novel) {
-        return errorHandler(null, "Không tìm thấy truyện", res, 404);
+        return sendErrorResponse(null, "Không tìm thấy truyện", res, 404);
       }
       if (novel.createdBy.toString() !== req.user._id.toString() && !["moderator", "admin"].includes(req.user.role)) {
-        return errorHandler(null, "Không có quyền chỉnh sửa chương", res, 403);
+        return sendErrorResponse(null, "Không có quyền chỉnh sửa chương", res, 403);
       }
 
       chapter.title = title;
@@ -214,7 +214,7 @@ export const updateChapter = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi cập nhật chương";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 
@@ -235,17 +235,17 @@ export const deleteChapter = async (req, res) => {
     return await withTransaction(async (session) => {
       const chapter = await Chapter.findById(chapterId);
       if (!chapter) {
-        return errorHandler(null, "Không tìm thấy chương", res, 404);
+        return sendErrorResponse(null, "Không tìm thấy chương", res, 404);
       }
       if (!["pending", "editing", "draft"].includes(chapter.status)) {
-        return errorHandler(null, "Chương không ở trạng thái cho phép xóa", res, 400);
+        return sendErrorResponse(null, "Chương không ở trạng thái cho phép xóa", res, 400);
       }
       const novel = await Novel.findById(chapter.novelId);
       if (!novel) {
-        return errorHandler(null, "Không tìm thấy truyện", res, 404);
+        return sendErrorResponse(null, "Không tìm thấy truyện", res, 404);
       }
       if (novel.createdBy.toString() !== req.user._id.toString() && !["moderator", "admin"].includes(req.user.role)) {
-        return errorHandler(null, "Không có quyền xóa chương", res, 403);
+        return sendErrorResponse(null, "Không có quyền xóa chương", res, 403);
       }
 
       await chapter.deleteOne({ session });
@@ -267,7 +267,7 @@ export const deleteChapter = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi xóa chương";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 

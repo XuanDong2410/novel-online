@@ -20,7 +20,7 @@ import {
   parseSort,
 } from "../../utils/moderation/helper/pagination.js";
 import { withTransaction } from "../../utils/moderation/helper/withTransaction.js";
-import { errorHandler } from "../../utils/errorHandler.js";
+import { sendErrorResponse } from "../../utils/sendErrorResponse.js";
 import Joi from "joi";
 
 // Các hàm hiện có (được lược bớt để tập trung vào hàm mới) ...
@@ -43,16 +43,16 @@ export const deleteAppeal = async (req, res) => {
     if (!appealId) return;
 
     if (!["admin", "moderator"].includes(req.user.role)) {
-      return errorHandler(null, "Không có quyền xóa kháng cáo", res, 403);
+      return sendErrorResponse(null, "Không có quyền xóa kháng cáo", res, 403);
     }
 
     return await withTransaction(async (session) => {
       const appeal = await Appeal.findById(appealId);
       if (!appeal) {
-        return errorHandler(null, "Không tìm thấy kháng cáo", res);
+        return sendErrorResponse(null, "Không tìm thấy kháng cáo", res);
       }
       if (appeal.status === "pending") {
-        return errorHandler(null, "Không thể xóa kháng cáo đang chờ xử lý", res, 400);
+        return sendErrorResponse(null, "Không thể xóa kháng cáo đang chờ xử lý", res, 400);
       }
 
       appeal.status = "deleted";
@@ -75,7 +75,7 @@ export const deleteAppeal = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi xóa kháng cáo";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 /**
@@ -113,7 +113,7 @@ export const submitAppeal = async (req, res) => {
 
     const { error } = schema.validate({ novelId, chapterId, actionType, reason });
     if (error) {
-      return errorHandler(null, error.details[0].message, res, 400);
+      return sendErrorResponse(null, error.details[0].message, res, 400);
     }
 
     return await withTransaction(async (session) => {
@@ -123,10 +123,10 @@ export const submitAppeal = async (req, res) => {
         if (!validatedNovelId) return;
         novel = await Novel.findById(novelId);
         if (!novel) {
-          return errorHandler(null, "Không tìm thấy truyện", res, 404);
+          return sendErrorResponse(null, "Không tìm thấy truyện", res, 404);
         }
         if (novel.createdBy.toString() !== req.user._id.toString()) {
-          return errorHandler(null, "Không có quyền kháng cáo cho truyện này", res, 403);
+          return sendErrorResponse(null, "Không có quyền kháng cáo cho truyện này", res, 403);
         }
       }
       if (chapterId) {
@@ -134,14 +134,14 @@ export const submitAppeal = async (req, res) => {
         if (!validatedChapterId) return;
         chapter = await Chapter.findById(chapterId);
         if (!chapter) {
-          return errorHandler(null, "Không tìm thấy chương", res, 404);
+          return sendErrorResponse(null, "Không tìm thấy chương", res, 404);
         }
         const chapterNovel = await Novel.findById(chapter.novelId);
         if (!chapterNovel) {
-          return errorHandler(null, "Không tìm thấy truyện của chương", res, 404);
+          return sendErrorResponse(null, "Không tìm thấy truyện của chương", res, 404);
         }
         if (chapterNovel.createdBy.toString() !== req.user._id.toString()) {
-          return errorHandler(null, "Không có quyền kháng cáo cho chương này", res, 403);
+          return sendErrorResponse(null, "Không có quyền kháng cáo cho chương này", res, 403);
         }
       }
 
@@ -161,7 +161,7 @@ export const submitAppeal = async (req, res) => {
 
       const recipient = await User.findOne({ role: "admin" });
       if (!recipient) {
-        return errorHandler(null, "Không tìm thấy quản trị viên", res, 500);
+        return sendErrorResponse(null, "Không tìm thấy quản trị viên", res, 500);
       }
 
       const result = await moderationActionHandler({
@@ -182,7 +182,7 @@ export const submitAppeal = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi gửi kháng cáo";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 
@@ -202,17 +202,17 @@ export const getAppeals = async (req, res) => {
   try {
     const { limit, page, skip } = parsePagination(req.query);
     if (!limit.valid) {
-      return errorHandler(null, limit.message, res, 400);
+      return sendErrorResponse(null, limit.message, res, 400);
     }
     const { sortBy, sortOrder } = parseSort(req.query);
     const sortOptions = { [sortBy]: sortOrder === "desc" ? -1 : 1 };
     const validSortFields = ["createdAt", "status", "userId"];
     if (!validSortFields.includes(sortBy)) {
-      return errorHandler(null, "Trường sắp xếp không hợp lệ", res, 400);
+      return sendErrorResponse(null, "Trường sắp xếp không hợp lệ", res, 400);
     }
 
     if (!["admin", "moderator"].includes(req.user.role)) {
-      return errorHandler(null, "Không có quyền xem danh sách kháng cáo", res, 403);
+      return sendErrorResponse(null, "Không có quyền xem danh sách kháng cáo", res, 403);
     }
 
     const appeals = await Appeal.find({})
@@ -236,7 +236,7 @@ export const getAppeals = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi lấy danh sách kháng cáo";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 
@@ -254,7 +254,7 @@ export const getAppealDetails = async (req, res) => {
     if (!appealId) return;
 
     if (!["admin", "moderator"].includes(req.user.role)) {
-      return errorHandler(null, "Không có quyền xem chi tiết kháng cáo", res, 403);
+      return sendErrorResponse(null, "Không có quyền xem chi tiết kháng cáo", res, 403);
     }
 
     const appeal = await Appeal.findById(appealId)
@@ -264,12 +264,12 @@ export const getAppealDetails = async (req, res) => {
       .lean();
 
     if (!appeal) {
-      return errorHandler(null, "Không tìm thấy kháng cáo", res, 404);
+      return sendErrorResponse(null, "Không tìm thấy kháng cáo", res, 404);
     }
 
     res.status(200).json({ success: true, data: appeal });
   } catch (error) {
     const message = "Lỗi khi lấy chi tiết kháng cáo";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };

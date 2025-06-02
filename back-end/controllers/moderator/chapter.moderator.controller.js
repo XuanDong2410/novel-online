@@ -47,7 +47,7 @@ import {
 } from "../../utils/moderation/helper/validation.js";
 
 import { withTransaction } from "../../utils/moderation/helper/withTransaction.js";
-import { errorHandler } from "../../utils/errorHandler.js";
+import { sendErrorResponse } from "../../utils/sendErrorResponse.js";
 
 /**
  * Get novel details with its chapters for moderation
@@ -66,17 +66,17 @@ export const getChapterDetails = async (req, res) => {
 
     if (!chapter) {
       const message = "Không tìm thấy chương";
-      return errorHandler(null, message, res, 404);
+      return sendErrorResponse(null, message, res, 404);
     }
     const novel = await Novel.findById(chapter.novelId).lean();
     const novelCheck = validateNovel(novel, null);
     if (!novelCheck.valid)
-      return errorHandler(null, novelCheck.message, res, 400);
+      return sendErrorResponse(null, novelCheck.message, res, 400);
 
     return res.status(200).json({ success: true, data: chapter });
   } catch (error) {
     const message = "Lỗi khi lấy chi tiết chương";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 /**
@@ -96,21 +96,21 @@ export const approveChapter = async (req, res) => {
     return await withTransaction(async (session) => {
       const chapter = await Chapter.findById(chapterId);
       if (!chapter) {
-        return errorHandler(null, "Không tìm thấy chương", res, 404);
+        return sendErrorResponse(null, "Không tìm thấy chương", res, 404);
       }
       if (!chapter.novelId) {
-        return errorHandler(null, "Không tìm thấy novelId của chương", res, 400);
+        return sendErrorResponse(null, "Không tìm thấy novelId của chương", res, 400);
       }
       const novel = await Novel.findById(chapter.novelId);
       const novelCheck = validateNovel(novel, session);
       if (!novelCheck.valid) {
-        return errorHandler(null, novelCheck.message, res, 400);
+        return sendErrorResponse(null, novelCheck.message, res, 400);
       }
       if (chapter.status !== "pending") {
-        return errorHandler(null, "Chương không ở trạng thái chờ duyệt", res, 400);
+        return sendErrorResponse(null, "Chương không ở trạng thái chờ duyệt", res, 400);
       }
       if (novel.statusPublish !== "approved") {
-        return errorHandler(null, "Truyện chưa được xuất bản", res, 400);
+        return sendErrorResponse(null, "Truyện chưa được xuất bản", res, 400);
       }
 
       chapter.status = "approved";
@@ -119,7 +119,7 @@ export const approveChapter = async (req, res) => {
       await chapter.save({ session });
 
       if (!req.user?._id) {
-        return errorHandler(null, "Không tìm thấy thông tin người dùng", res, 401);
+        return sendErrorResponse(null, "Không tìm thấy thông tin người dùng", res, 401);
       }
       const result = await moderationActionHandler({
         action: MODERATION_ACTIONS.approve,
@@ -138,7 +138,7 @@ export const approveChapter = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi phê duyệt chương";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 export const rejectChapter = async (req, res) => {
@@ -150,7 +150,7 @@ export const requestEditChapter = async (req, res) => {
     await validateId(req.params.chapterId);
     const { note } = req.body;
     if (!req.body.note) {
-      return errorHandler(null, "Ghi chú là bắt buộc", res, 400);
+      return sendErrorResponse(null, "Ghi chú là bắt buộc", res, 400);
     }
     const chapter = await Chapter.findById(req.params.chapterId);
     if (!chapter)
@@ -169,7 +169,7 @@ export const requestEditChapter = async (req, res) => {
       await novel.save({ session });
       await chapter.save({ session });
       if (!req.user?._id) {
-        return errorHandler(
+        return sendErrorResponse(
           null,
           "Không tìm thấy thông tin người dùng",
           res,
@@ -196,7 +196,7 @@ export const requestEditChapter = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi yêu cầu chỉnh sửa chương";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 // POST /api/moderation/chapters/:chapterId/warning
@@ -205,11 +205,11 @@ export const warnChapter = async (req, res) => {
     await validateId(req.params.chapterId);
     const { note } = req.body;
     if (!req.body.note) {
-      return errorHandler(null, "Ghi chú là bắt buộc", res, 400);
+      return sendErrorResponse(null, "Ghi chú là bắt buộc", res, 400);
     }
     const chapter = await Chapter.findById(req.params.chapterId);
     if (!chapter?.novelId) {
-      return errorHandler(null, "Không tìm thấy novelId của chương", res, 400);
+      return sendErrorResponse(null, "Không tìm thấy novelId của chương", res, 400);
     }
     const novel = await Novel.findById(chapter.novelId);
     return await withTransaction(async (session) => {
@@ -222,7 +222,7 @@ export const warnChapter = async (req, res) => {
       await chapter.save({ session });
       await novel.save({ session });
       if (!req.user?._id) {
-        return errorHandler(
+        return sendErrorResponse(
           null,
           "Không tìm thấy thông tin người dùng",
           res,
@@ -249,7 +249,7 @@ export const warnChapter = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi cảnh cáo chương";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 
@@ -259,12 +259,12 @@ export const warnChapterViolation = async (req, res) => {
     await validateId(req.params.chapterId);
     const { note } = req.body;
     if (!req.body.note) {
-      return errorHandler(null, "Ghi chú là bắt buộc", res, 400);
+      return sendErrorResponse(null, "Ghi chú là bắt buộc", res, 400);
     }
     const chapter = await Chapter.findById(req.params.chapterId);
     if (!chapter) {
       const message = "Không tìm thấy chương";
-      return errorHandler(null, message, res, 404);
+      return sendErrorResponse(null, message, res, 404);
     }
     return await withTransaction(async (session) => {
       chapter.status = "warning";
@@ -275,7 +275,7 @@ export const warnChapterViolation = async (req, res) => {
       await chapter.save({ session });
 
       if (!chapter?.novelId) {
-        return errorHandler(
+        return sendErrorResponse(
           null,
           "Không tìm thấy novelId của chương",
           res,
@@ -286,7 +286,7 @@ export const warnChapterViolation = async (req, res) => {
       novel.statusPublish = "warning";
       await novel.save({ session });
       if (!novel?.createdBy) {
-        return errorHandler(
+        return sendErrorResponse(
           null,
           "Không tìm thấy tác giả của truyện",
           res,
@@ -306,10 +306,10 @@ export const warnChapterViolation = async (req, res) => {
       if (!author) {
         await session.abortTransaction();
         const message = "Không tìm thấy tác giả";
-        return errorHandler(null, message, res, 404);
+        return sendErrorResponse(null, message, res, 404);
       }
       if (!req.user?._id) {
-        return errorHandler(
+        return sendErrorResponse(
           null,
           "Không tìm thấy thông tin người dùng",
           res,
@@ -332,7 +332,7 @@ export const warnChapterViolation = async (req, res) => {
       const thresholdResult = await handleViolationThreshold(author._id);
       if (!thresholdResult.success) {
         const message = "Không thể gắn cờ vi phạm" + thresholdResult.message;
-        return errorHandler(null, message, res, 500);
+        return sendErrorResponse(null, message, res, 500);
       }
 
       await session.commitTransaction();
@@ -343,7 +343,7 @@ export const warnChapterViolation = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi cảnh cáo và gắn cờ chương vi phạm";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 /**
@@ -362,24 +362,24 @@ export const viewChapterForEdit = async (req, res) => {
 
     const chapter = await Chapter.findById(chapterId).lean();
     if (!chapter) {
-      return errorHandler(null, "Không tìm thấy chương", res, 404);
+      return sendErrorResponse(null, "Không tìm thấy chương", res, 404);
     }
     if (!["pending", "editing", "draft"].includes(chapter.status)) {
-      return errorHandler(null, "Chương không ở trạng thái cho phép chỉnh sửa", res, 400);
+      return sendErrorResponse(null, "Chương không ở trạng thái cho phép chỉnh sửa", res, 400);
     }
 
     const novel = await Novel.findById(chapter.novelId).lean();
     if (!novel) {
-      return errorHandler(null, "Không tìm thấy truyện", res, 404);
+      return sendErrorResponse(null, "Không tìm thấy truyện", res, 404);
     }
     if (novel.createdBy.toString() !== req.user._id.toString() && !["moderator", "admin"].includes(req.user.role)) {
-      return errorHandler(null, "Không có quyền xem chương để chỉnh sửa", res, 403);
+      return sendErrorResponse(null, "Không có quyền xem chương để chỉnh sửa", res, 403);
     }
 
     res.status(200).json({ success: true, data: chapter });
   } catch (error) {
     const message = "Lỗi khi xem thông tin chương";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 

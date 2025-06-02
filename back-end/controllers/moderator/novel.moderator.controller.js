@@ -87,7 +87,7 @@ import {
   parseSort,
 } from "../../utils/moderation/helper/pagination.js";
 import { withTransaction } from "../../utils/moderation/helper/withTransaction.js";
-import { errorHandler } from "../../utils/errorHandler.js";
+import { sendErrorResponse } from "../../utils/sendErrorResponse.js";
 
 /**
  * Lấy danh sách các tiểu thuyết đang chờ duyệt
@@ -103,7 +103,7 @@ export const getPendingNovels = async (req, res) => {
     const sortOptions = { [sortBy]: sortOrder === "desc" ? -1 : 1 };
     const validSortFields = ["createdAt", "title", "author"];
     if (!validSortFields.includes(sortBy)) {
-      return errorHandler(null, "Trường sắp xếp không hợp lệ", res, 400);
+      return sendErrorResponse(null, "Trường sắp xếp không hợp lệ", res, 400);
     }
     const novels = await Novel.find({ statusPublish: "pending" })
       .populate("createdBy", "username email")
@@ -125,7 +125,7 @@ export const getPendingNovels = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi lấy danh sách truyện chờ duyệt";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 
@@ -145,13 +145,13 @@ export const getPublishedNovelsWithPendingChapters = async (req, res) => {
   try {
     const { limit, page, skip } = parsePagination(req.query);
     if (!limit.valid) {
-      return errorHandler(null, limit.message, res, 400);
+      return sendErrorResponse(null, limit.message, res, 400);
     }
     const { sortBy, sortOrder } = parseSort(req.query);
     const sortOptions = { [sortBy]: sortOrder === "desc" ? -1 : 1 };
     const validSortFields = ["createdAt", "title", "author"];
     if (!validSortFields.includes(sortBy)) {
-      return errorHandler(null, "Trường sắp xếp không hợp lệ", res, 400);
+      return sendErrorResponse(null, "Trường sắp xếp không hợp lệ", res, 400);
     }
 
     const novels = await Novel.find({ statusPublish: "approved" })
@@ -205,7 +205,7 @@ export const getPublishedNovelsWithPendingChapters = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi lấy danh sách truyện có chương mới";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 /**
@@ -226,7 +226,7 @@ export const getNovelWithChapters = async (req, res) => {
 
     const novelCheck = validateNovel(novel, null);
     if (!novelCheck.valid)
-      return errorHandler(null, novelCheck.message, res, 400);
+      return sendErrorResponse(null, novelCheck.message, res, 400);
     const { chapterPage, chapterLimit } = parsePagination(req.query);
 
     const chapters = await Chapter.find({ novelId: novel._id })
@@ -237,7 +237,7 @@ export const getNovelWithChapters = async (req, res) => {
     res.status(200).json({ success: true, data: { novel, chapters } });
   } catch (error) {
     const message = "Lỗi khi lấy chi tiết truyện";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 
@@ -249,7 +249,7 @@ export const approveNovelAndChapters = async (req, res) => {
     return await withTransaction(async (session) => {
       const novelCheck = validateNovel(novel);
       if (!novelCheck.valid)
-        return errorHandler(null, novelCheck.message, res, 400);
+        return sendErrorResponse(null, novelCheck.message, res, 400);
       const chapters = await Chapter.countDocuments({
         novelId: novel._id,
         status: { $in: ["rejected", "warning", "editing"] },
@@ -257,10 +257,10 @@ export const approveNovelAndChapters = async (req, res) => {
       if (chapters > 0) {
         const message =
           "Không thể duyệt vì có chương bị từ chối, cảnh báo hoặc yêu cầu chỉnh sửa";
-        return errorHandler(null, message, res, 400);
+        return sendErrorResponse(null, message, res, 400);
       }
       if (novel.statusPublish !== "pending") {
-        return errorHandler(
+        return sendErrorResponse(
           null,
           "Truyện không ở trạng thái chờ duyệt",
           res,
@@ -277,7 +277,7 @@ export const approveNovelAndChapters = async (req, res) => {
         { session }
       );
       if (!req.user?._id) {
-        return errorHandler(
+        return sendErrorResponse(
           null,
           "Không tìm thấy thông tin người dùng",
           res,
@@ -302,7 +302,7 @@ export const approveNovelAndChapters = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi phê duyệt truyện";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 
@@ -312,7 +312,7 @@ export const rejectNovel = async (req, res) => {
     await validateId(req.params.id);
     const { note } = req.body;
     if (!req.body.note) {
-      return errorHandler(null, "Ghi chú là bắt buộc", res, 400);
+      return sendErrorResponse(null, "Ghi chú là bắt buộc", res, 400);
     }
     const novel = await Novel.findById(req.params.id);
 
@@ -329,7 +329,7 @@ export const rejectNovel = async (req, res) => {
         { session }
       );
       if (!req.user?._id) {
-        return errorHandler(
+        return sendErrorResponse(
           null,
           "Không tìm thấy thông tin người dùng",
           res,
@@ -355,7 +355,7 @@ export const rejectNovel = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi từ chối truyện";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 
@@ -365,16 +365,16 @@ export const hideNovel = async (req, res) => {
     await validateId(req.params.id);
     const { note } = req.body;
     if (!req.body.note) {
-      return errorHandler(null, "Ghi chú là bắt buộc", res, 400);
+      return sendErrorResponse(null, "Ghi chú là bắt buộc", res, 400);
     }
     const novel = await Novel.findById(req.params.id);
     return await withTransaction(async (session) => {
       if (!novel) {
         const message = "Không tìm thấy truyện";
-        return errorHandler(null, message, res, 404);
+        return sendErrorResponse(null, message, res, 404);
       }
       const noteCheck = validateNote(note);
-      if (!noteCheck) return errorHandler(error, noteCheck.message, res, 400);
+      if (!noteCheck) return sendErrorResponse(error, noteCheck.message, res, 400);
       if (novel.statusPublish === "rejected") {
         await session.abortTransaction();
         return res.status(400).json({
@@ -385,13 +385,13 @@ export const hideNovel = async (req, res) => {
       if (novel.isHidden) {
         await session.abortTransaction();
         const message = "Truyện đã bị ẩn";
-        return errorHandler(error, message, res, 400);
+        return sendErrorResponse(error, message, res, 400);
       }
 
       novel.isHidden = true;
       await novel.save({ session });
       if (!req.user?._id) {
-        return errorHandler(
+        return sendErrorResponse(
           null,
           "Không tìm thấy thông tin người dùng",
           res,
@@ -417,7 +417,7 @@ export const hideNovel = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi ẩn truyện";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 // POST /api/moderation/novels/:id/un-hide
@@ -426,12 +426,12 @@ export const unHideNovel = async (req, res) => {
     await validateId(req.params.id);
     const { note } = req.body;
     if (!req.body.note) {
-      return errorHandler(null, "Ghi chú là bắt buộc", res, 400);
+      return sendErrorResponse(null, "Ghi chú là bắt buộc", res, 400);
     }
     const novel = await Novel.findById(req.params.id);
     if (!novel) {
       const message = "Không tìm thấy truyện";
-      return errorHandler(null, message, res, 404);
+      return sendErrorResponse(null, message, res, 404);
     }
 
     return await withTransaction(async (session) => {
@@ -443,13 +443,13 @@ export const unHideNovel = async (req, res) => {
       if (!novel.isHidden) {
         await session.abortTransaction();
         const message = "Truyện không bị ẩn";
-        return errorHandler(null, message, res, 400);
+        return sendErrorResponse(null, message, res, 400);
       }
 
       novel.isHidden = false;
       await novel.save({ session });
       if (!req.user?._id) {
-        return errorHandler(
+        return sendErrorResponse(
           null,
           "Không tìm thấy thông tin người dùng",
           res,
@@ -475,7 +475,7 @@ export const unHideNovel = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi hiển thị truyện";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 /**
@@ -498,19 +498,19 @@ export const viewNovelForEdit = async (req, res) => {
 
     const novelCheck = validateNovel(novel, null);
     if (!novelCheck.valid) {
-      return errorHandler(null, novelCheck.message, res, 400);
+      return sendErrorResponse(null, novelCheck.message, res, 400);
     }
     if (!["pending", "editing", "draft"].includes(novel.statusPublish)) {
-      return errorHandler(null, "Truyện không ở trạng thái cho phép chỉnh sửa", res, 400);
+      return sendErrorResponse(null, "Truyện không ở trạng thái cho phép chỉnh sửa", res, 400);
     }
     if (novel.createdBy.toString() !== req.user._id.toString() && !["moderator", "admin"].includes(req.user.role)) {
-      return errorHandler(null, "Không có quyền xem truyện để chỉnh sửa", res, 403);
+      return sendErrorResponse(null, "Không có quyền xem truyện để chỉnh sửa", res, 403);
     }
 
     res.status(200).json({ success: true, data: novel });
   } catch (error) {
     const message = "Lỗi khi xem thông tin truyện";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 

@@ -8,13 +8,13 @@ import Chapter from "../../models/chapter.model.js";
 import User from "../../models/user.model.js";
 import Appeal from "../../models/appeal.model.js";
 import { moderationActionHandler } from "../../utils/moderation/moderationActionHandler.js";
-import { MODERATION_ACTIONS } from "../../utils/moderationAction.js";
+import { MODERATION_ACTIONS } from "../../utils/moderation/constants/action.js";
 import {
   validateId,
 } from "../../utils/moderation/helper/validation.js";
 
 import { withTransaction } from "../../utils/moderation/helper/withTransaction.js";
-import { errorHandler } from "../../utils/errorHandler.js";
+import { sendErrorResponse } from "../../utils/sendErrorResponse.js";
 import Joi from "joi";
 import cron from "node-cron";
 
@@ -49,17 +49,17 @@ export const resolveAppeal = async (req, res) => {
       }),
     });
     const { error } = schema.validate({ decision, note });
-    if (error) return errorHandler(null, error.details[0].message, res, 400);
+    if (error) return sendErrorResponse(null, error.details[0].message, res, 400);
 
     if (!["admin", "moderator"].includes(req.user.role)) {
-      return errorHandler(null, "Không có quyền xử lý kháng cáo", res, 403);
+      return sendErrorResponse(null, "Không có quyền xử lý kháng cáo", res, 403);
     }
 
     return await withTransaction(async (session) => {
       const appeal = await Appeal.findById(appealId);
-      if (!appeal) return errorHandler(null, "Không tìm thấy kháng cáo", res, 404);
+      if (!appeal) return sendErrorResponse(null, "Không tìm thấy kháng cáo", res, 404);
       if (appeal.status !== "pending") {
-        return errorHandler(null, "Kháng cáo đã được xử lý", res, 400);
+        return sendErrorResponse(null, "Kháng cáo đã được xử lý", res, 400);
       }
 
       appeal.status = decision;
@@ -69,7 +69,7 @@ export const resolveAppeal = async (req, res) => {
       if (decision === "approve") {
         if (appeal.novelId) {
           novel = await Novel.findById(appeal.novelId);
-          if (!novel) return errorHandler(null, "Không tìm thấy truyện", res, 404);
+          if (!novel) return sendErrorResponse(null, "Không tìm thấy truyện", res, 404);
           if (appeal.actionType === "hide") {
             novel.isHidden = false;
             novel.statusPublish = "approved";
@@ -81,7 +81,7 @@ export const resolveAppeal = async (req, res) => {
         }
         if (appeal.chapterId) {
           chapter = await Chapter.findById(appeal.chapterId);
-          if (!chapter) return errorHandler(null, "Không tìm thấy chương", res, 404);
+          if (!chapter) return sendErrorResponse(null, "Không tìm thấy chương", res, 404);
           if (["warning", "flag"].includes(appeal.actionType)) {
             chapter.status = "editing";
             chapter.violation = { count: (chapter.violation?.count || 1) - 1 };
@@ -118,7 +118,7 @@ export const resolveAppeal = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi xử lý kháng cáo";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 
@@ -132,7 +132,7 @@ export const resolveAppeal = async (req, res) => {
 export const getAppealStats = async (req, res) => {
   try {
     if (!["admin", "moderator"].includes(req.user.role)) {
-      return errorHandler(null, "Không có quyền xem thống kê kháng cáo", res, 403);
+      return sendErrorResponse(null, "Không có quyền xem thống kê kháng cáo", res, 403);
     }
 
     const stats = await Appeal.aggregate([
@@ -196,7 +196,7 @@ export const getAppealStats = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi lấy thống kê kháng cáo";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 
@@ -235,7 +235,7 @@ export const submitAppeal = async (req, res) => {
 
     const { error } = schema.validate({ novelId, chapterId, actionType, reason });
     if (error) {
-      return errorHandler(null, error.details[0].message, res, 400);
+      return sendErrorResponse(null, error.details[0].message, res, 400);
     }
 
     const appealCount = await Appeal.countDocuments({
@@ -243,7 +243,7 @@ export const submitAppeal = async (req, res) => {
       createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }, // 7 ngày
     });
     if (appealCount >= 5) {
-      return errorHandler(
+      return sendErrorResponse(
         null,
         "Bạn đã vượt quá giới hạn 5 kháng cáo trong tuần",
         res,
@@ -258,10 +258,10 @@ export const submitAppeal = async (req, res) => {
         if (!validatedNovelId) return;
         novel = await Novel.findById(novelId);
         if (!novel) {
-          return errorHandler(null, "Không tìm thấy truyện", res, 404);
+          return sendErrorResponse(null, "Không tìm thấy truyện", res, 404);
         }
         if (novel.createdBy.toString() !== req.user._id.toString()) {
-          return errorHandler(null, "Không có quyền kháng cáo cho truyện này", res, 403);
+          return sendErrorResponse(null, "Không có quyền kháng cáo cho truyện này", res, 403);
         }
       }
       if (chapterId) {
@@ -269,14 +269,14 @@ export const submitAppeal = async (req, res) => {
         if (!validatedChapterId) return;
         chapter = await Chapter.findById(chapterId);
         if (!chapter) {
-          return errorHandler(null, "Không tìm thấy chương", res, 404);
+          return sendErrorResponse(null, "Không tìm thấy chương", res, 404);
         }
         const chapterNovel = await Novel.findById(chapter.novelId);
         if (!chapterNovel) {
-          return errorHandler(null, "Không tìm thấy truyện của chương", res, 404);
+          return sendErrorResponse(null, "Không tìm thấy truyện của chương", res, 404);
         }
         if (chapterNovel.createdBy.toString() !== req.user._id.toString()) {
-          return errorHandler(null, "Không có quyền kháng cáo cho chương này", res, 403);
+          return sendErrorResponse(null, "Không có quyền kháng cáo cho chương này", res, 403);
         }
       }
 
@@ -296,7 +296,7 @@ export const submitAppeal = async (req, res) => {
 
       const recipient = await User.findOne({ role: "admin" });
       if (!recipient) {
-        return errorHandler(null, "Không tìm thấy quản trị viên", res, 500);
+        return sendErrorResponse(null, "Không tìm thấy quản trị viên", res, 500);
       }
 
       const result = await moderationActionHandler({
@@ -317,7 +317,7 @@ export const submitAppeal = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi gửi kháng cáo";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 

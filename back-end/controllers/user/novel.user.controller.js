@@ -103,20 +103,20 @@ export const updateNovel = async (req, res) => {
     });
     const { error } = schema.validate({ title, description });
     if (error) {
-      return errorHandler(null, error.details[0].message, res, 400);
+      return sendErrorResponse(null, error.details[0].message, res, 400);
     }
 
     return await withTransaction(async (session) => {
       const novel = await Novel.findById(novelId);
       const novelCheck = validateNovel(novel, session);
       if (!novelCheck.valid) {
-        return errorHandler(null, novelCheck.message, res, 400);
+        return sendErrorResponse(null, novelCheck.message, res, 400);
       }
       if (!["pending", "editing", "draft"].includes(novel.statusPublish)) {
-        return errorHandler(null, "Truyện không ở trạng thái cho phép chỉnh sửa", res, 400);
+        return sendErrorResponse(null, "Truyện không ở trạng thái cho phép chỉnh sửa", res, 400);
       }
       if (novel.createdBy.toString() !== req.user._id.toString() && !["moderator", "admin"].includes(req.user.role)) {
-        return errorHandler(null, "Không có quyền chỉnh sửa truyện", res, 403);
+        return sendErrorResponse(null, "Không có quyền chỉnh sửa truyện", res, 403);
       }
 
       novel.title = title;
@@ -140,7 +140,7 @@ export const updateNovel = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi cập nhật truyện";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 
@@ -165,13 +165,13 @@ export const deleteNovel = async (req, res) => {
       const novel = await Novel.findById(novelId);
       const novelCheck = validateNovel(novel, session);
       if (!novelCheck.valid) {
-        return errorHandler(null, novelCheck.message, res, 400);
+        return sendErrorResponse(null, novelCheck.message, res, 400);
       }
       if (!["pending", "editing", "draft"].includes(novel.statusPublish)) {
-        return errorHandler(null, "Truyện không ở trạng thái cho phép xóa", res, 400);
+        return sendErrorResponse(null, "Truyện không ở trạng thái cho phép xóa", res, 400);
       }
       if (novel.createdBy.toString() !== req.user._id.toString() && !["moderator", "admin"].includes(req.user.role)) {
-        return errorHandler(null, "Không có quyền xóa truyện", res, 403);
+        return sendErrorResponse(null, "Không có quyền xóa truyện", res, 403);
       }
 
       await Chapter.deleteMany({ novelId: novel._id }, { session });
@@ -193,7 +193,7 @@ export const deleteNovel = async (req, res) => {
     });
   } catch (error) {
     const message = "Lỗi khi xóa truyện";
-    return errorHandler(error, message, res, 500);
+    return sendErrorResponse(error, message, res, 500);
   }
 };
 
