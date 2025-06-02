@@ -28,21 +28,20 @@ const novelSchema = new mongoose.Schema({
     title: {
         type: String,
         required: true,
-        unique: true,
         trim: true,
-        maxlength: 200, // Giới hạn độ dài tiêu đề
+        maxLength: 200, // Giới hạn độ dài tiêu đề
         index: true // Tạo chỉ mục cho trường title để tăng tốc độ truy vấn
     },
     author: {
         type: String,
         required: true,
         trim: true,
-        maxlength: 100 // Giới hạn độ dài tên tác giả
+        maxLength: 100 // Giới hạn độ dài tên tác giả
     },
     description: {
         type: String,
         required: true,
-        maxlength: 2000 // Giới hạn độ dài mô tả
+        maxLength: 2000 // Giới hạn độ dài mô tả
     },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
@@ -50,10 +49,10 @@ const novelSchema = new mongoose.Schema({
         required: true,
         index: true // Tạo chỉ mục cho trường createdBy để tăng tốc độ truy vấn
     },
-     // ✅ Thêm để quản lý và kiểm duyệt
+    // ✅ Thêm để quản lý và kiểm duyệt
     statusPublish: {
         type: String,
-        enum: ['draft', 'pending', 'editing', 'warning', 'approved', 'rejected'],
+        enum: ['draft', 'pending', 'editing', 'warning', 'approved', 'rejected', 'retracted'],
         default: 'draft',
         index: true // Tạo chỉ mục cho trường statusPublish để tăng tốc độ truy vấn
     },
@@ -75,9 +74,30 @@ const novelSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Report'
     }],
+    rates: {
+        total: { type: Number, default: 0, min: 0 },
+        count: { type: Number, default: 0, min: 0 },
+        averageRating: { type: Number, default: 0, min: 0, max: 5 }
+    },
+
+    chapters: {
+        count: {
+            type: Number,
+            default: 0,
+            min: 0 // Đảm bảo chapters.count không âm
+        },
+        latestChapter: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Chapter',
+        }
+    },
     isHidden: {
         type: Boolean,
         default: false
+    },
+    hiddenBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
     },
     // ✅ Thêm thống kê
     viewCount: {
@@ -85,51 +105,53 @@ const novelSchema = new mongoose.Schema({
         default: 0,
         min: 0 // Đảm bảo viewCount không âm
     },
-    averageRating: {
-        type: Number,
-        default: 0,
-        min: 0,
-        max: 5 // Đảm bảo giá trị của averageRating trong khoảng từ 0 đến 5
+    lastModeratedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
     },
+
     violation: {
         aiFlag: {
-          type: Boolean,
-          default: false,
+            type: Boolean,
+            default: false,
         },
         userReports: {
-          type: Number,
-          default: 0,
-          min: 0,
+            type: Number,
+            default: 0,
+            min: 0,
         },
         modConfirmed: {
-          type: Boolean,
-          default: false,
+            type: Boolean,
+            default: false,
         },
         details: {
-          type: mongoose.Schema.Types.Mixed,
-          default: null
+            type: mongoose.Schema.Types.Mixed,
+            default: null
         },
         count: {
-          type: Number,
-          default: 0,
-          min: 0,
+            type: Number,
+            default: 0,
+            min: 0,
         }
     },
     coverImage: {
         type: String,
         required: false, // Không bắt buộc phải có ảnh bìa
         trim: true,
-        maxlength: 500 // Giới hạn độ dài URL ảnh bìa
+        maxLength: 500 // Giới hạn độ dài URL ảnh bìa
     },
     tags: [{
         type: String,
         trim: true,
-        maxlength: 50 // Giới hạn độ dài mỗi tag
-    }],
+        lowercase: true,
+        maxLength: 50 // Giới hạn độ dài mỗi tag
+    }
+    ],
 }, { timestamps: true });
 
 // Thêm text index cho tìm kiếm văn bản
 novelSchema.index({ title: 'text', description: 'text', tags: 'text' });
+novelSchema.index({ title: 1, createdBy: 1 }, { unique: true })
 
 const Novel = mongoose.model('Novel', novelSchema);
 export default Novel;
