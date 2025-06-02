@@ -7,9 +7,9 @@ import {
     updateNovelCover,
     deleteNovel, 
     requestPublish,
-    cancelRequestPublish,
-    resubmitNovel,
-    hideNovel,
+    requestEdit,
+    cancelRequest,
+    retractNovel,
     getNovelStats,
 } from "../../controllers/user/novel.user.controller.js";
 
@@ -26,10 +26,11 @@ router.patch('/:id/cover', updateNovelCover);
 router.delete('/:id', deleteNovel);
 
 router.post("/:id/request-publish", requestPublish);
-router.patch("/:id/cancel-request", cancelRequestPublish);
+router.post("/:id/request-edit", requestEdit); 
+router.patch("/:id/cancel-request", cancelRequest);
 router.patch("/:id/resubmit", resubmitNovel);
+router.patch("/:id/retract", retractNovel);
 
-router.patch("/:id/hide", hideNovel);
 router.get('/:id/stats', getNovelStats);
 
 export default router;
