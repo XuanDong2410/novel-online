@@ -34,7 +34,7 @@ import logAdminRouters from "../routes/admin/log.admin.route.js";
 import systemAdminRouters from "../routes/admin/system.admin.route.js";
 
 export function configureRoutes(app) {
-  app.use(express.json());
+  // ============ PROTECT ROUTES =================
   const userRoute = [protectRoute];
   const moderatorRoute = [protectRoute, isModerator];
   const adminRoute = [protectRoute, isAdmin];
