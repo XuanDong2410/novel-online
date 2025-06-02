@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { ENV_VARS } from '../config/envVars.config.js';
+import { ENV_VARS } from '../config/env.config.js';
 import User from '../models/user.model.js';
 
 export const protectRoute = async (req, res, next) => {
@@ -8,7 +8,7 @@ export const protectRoute = async (req, res, next) => {
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: "Unauthorized access - No Token Provided"
+        message: "Unauthorized access - No access Token Provided"
       });
     }
 
@@ -43,7 +43,7 @@ export const protectRoute = async (req, res, next) => {
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({
         success: false,
-        message: "Token expired. Please login again."
+        message: "Access token expired. Please refresh token.'"
       });
     }
 
