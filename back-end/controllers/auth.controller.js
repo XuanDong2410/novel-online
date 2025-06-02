@@ -2,6 +2,7 @@ import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import { generateTokenAndSetCookie } from "../utils/generateToken.js";
 import { validateSignup, validateLogin } from "../utils/validator.js";
+import { ENV_VARS } from "../config/env.config.js";
 export const signup = async (req, res) => {
     try {
         const { email, password, username } = req.body;
@@ -42,7 +43,7 @@ export const signup = async (req, res) => {
             image: image,
         });
         if(newUser){
-            generateTokenAndSetCookie(newUser._id, res);
+            generateTokenAndSetCookie(newUser._id, newUser.role, res);
             await newUser.save();
             res.status(201).json({
                 success: true,
@@ -61,6 +62,34 @@ export const signup = async (req, res) => {
             error: error.message
         });
         console.log("Error in sign up" + error.message);
+    }
+}
+export const refreshToken = async (req, res) => {
+    try {
+        const refreshToken = req.cookies["jwt-refresh-novel"];
+        if (!refreshToken) {
+            return res.status(401).json({ success: false, message: "No refresh token provided" });
+        }
+
+        // Xác minh refresh token
+        const decoded = jwt.verify(refreshToken, ENV_VARS.JWT_REFRESH_SECRET);
+        if(!decoded || !decoded.userId) {
+            return res.status(401).json({ success: false, message: "Invalid refresh token" });
+        }
+        // Kiểm tra refresh token có trong database
+        const user = await User.findById(decoded.userId).lean();
+        if (!user || !user.refreshToken || user.refreshToken !== refreshToken) {
+            return res.status(401).json({ success: false, message: "Invalid or revoked refresh token" });
+        }
+
+        // Tạo và gửi lại access token mới
+        const { accessToken } = await generateTokenAndSetCookie(user._id, user.role, res);
+        res.json({ success: true, message: "Access token refreshed", accessToken });
+    } catch (error) {
+        if (error.name === "TokenExpiredError") {
+            return res.status(401).json({ success: false, message: "Refresh token expired" });
+        }
+        res.status(500).json({ success: false, message: "Error refreshing access token", error: error.message });
     }
 }
 export const login = async (req, res) => {
@@ -99,7 +128,7 @@ export const login = async (req, res) => {
         await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
 
         // Generate token and set cookie
-        generateTokenAndSetCookie(user._id, res);
+        const { accessToken, refreshToken } = generateTokenAndSetCookie(user._id, user.role, res);
         res.status(200).json({
             success: true,
             message: "User logged in successfully",
@@ -121,6 +150,7 @@ export const login = async (req, res) => {
 export const logout = async (req, res) => {
     try {
         res.clearCookie("jwt-novel");
+        res.clearCookie("jwt-refresh-novel");
         return res.status(200).json({
             success: true,
             message: "Logged out successfully"
