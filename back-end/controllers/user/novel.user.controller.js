@@ -6,7 +6,7 @@ import Chapter from '../../models/chapter.model.js';
 import { validateInputWithSchema, mongooseSchemaToValidatorRules, standardValidators } from '../../utils/validator/inputValidator.js';
 import { MODERATION_ACTIONS } from '../../utils/moderation/constants/action.js';
 import { moderationActionHandler } from '../../utils/moderation/moderationActionHandler.js';
-
+import { parsePagination, parseSort } from '../../utils/moderation/helper/pagination.js';
 // Convert Mongoose schema to validation rules for Novel
 const novelSchemaRules = mongooseSchemaToValidatorRules(Novel.schema);
 novelSchemaRules.coverImage.validate = standardValidators.url; // Add URL validation for coverImage
@@ -28,20 +28,7 @@ function sendErrorResponse(error, message, res, status) {
   });
 }
 
-/**
- * Validates ObjectId and returns it if valid
- * @param {string} id - ObjectId to validate
- * @param {Object} res - Express response object
- * @returns {string|null} Valid ObjectId or null if invalid
- */
-async function validateId(id, res) {
-  const validationResult = validateInputWithSchema({ id }, {}, { id: { type: 'objectid', required: true } });
-  if (!validationResult.isValid) {
-    sendErrorResponse(null, validationResult.errors.id[0], res, 400);
-    return null;
-  }
-  return id;
-}
+
 
 /**
  * Validates novel existence and permissions
@@ -57,8 +44,8 @@ function validateNovel(novel, user, allowedStatuses = []) {
   if (allowedStatuses.length && !allowedStatuses.includes(novel.statusPublish)) {
     return { valid: false, message: `Truyện không ở trạng thái cho phép: ${allowedStatuses.join(', ')}` };
   }
-  if (novel.createdBy.toString() !== user._id.toString() || !['moderator', 'admin'].includes(user.role)) {
-    return { valid: false, message: 'Không có quyền thực hiện hành động này' };
+  if (novel.createdBy.toString() !== user._id.toString()) {
+    return { valid: false, message: `'Không có quyền thực hiện hành động này, 'createdBy': ${novel.createdBy._id}, 'user._id': ${user._id}` };
   }
   return { valid: true, message: '' };
 }
@@ -79,7 +66,7 @@ export const createNovel = async (req, res) => {
     const { title, description, author, attributes, tags, coverImage } = req.body;
     const userId = req.user._id;
 
-    // Validate input
+    // Validate đầu vào
     const validationResult = validateInputWithSchema(
       { title, description, author, attributes, tags, coverImage },
       {},
@@ -96,14 +83,14 @@ export const createNovel = async (req, res) => {
       return sendErrorResponse(null, JSON.stringify(validationResult.errors), res, 400);
     }
 
-    // Check for duplicate title
+    // Kiểm tra tiêu đề trùng
     const existingNovel = await Novel.findOne({ title: title.trim() }).lean();
     if (existingNovel) {
       return sendErrorResponse(null, 'Tiêu đề truyện đã tồn tại', res, 400);
     }
 
     // Validate attributes
-    if (attributes && attributes.length > 0) {
+    if (attributes?.length) {
       const validAttributes = await NovelAttribute.find({
         _id: { $in: attributes },
         isActive: true,
@@ -113,28 +100,35 @@ export const createNovel = async (req, res) => {
       }
     }
 
-    // Create new novel
+    // Chọn kiểm duyệt viên ngẫu nhiên
+    const [moderator] = await User.aggregate([
+      { $match: { role: 'moderator' } },
+      { $sample: { size: 1 } }
+    ]);
+
+    // Tạo truyện mới
     const newNovel = new Novel({
       title: title.trim(),
       description: description.trim(),
       author: author.trim(),
       createdBy: userId,
       attributes: attributes || [],
-      tags: tags ? tags.map(tag => tag.trim().toLowerCase()) : [],
-      coverImage: coverImage?.trim() || undefined,
+      tags: tags?.map(tag => tag.trim().toLowerCase()) || [],
+      coverImage: coverImage?.trim(),
       statusPublish: 'draft',
+      moderation: {
+        moderator: moderator?._id || null
+      }
     });
 
     await newNovel.save({ session });
 
-    // Update user's uploadedNovels
-    await User.findByIdAndUpdate(
-      userId,
-      { $push: { uploadedNovels: newNovel._id } },
-      { session }
-    );
+    await User.findByIdAndUpdate(userId, {
+      $push: { uploadedNovels: newNovel._id }
+    }, { session });
 
     await session.commitTransaction();
+
     return res.status(201).json({
       success: true,
       message: 'Truyện nháp được tạo thành công',
@@ -147,30 +141,53 @@ export const createNovel = async (req, res) => {
     session.endSession();
   }
 };
-
 /**
- * Retrieves all novels created by the authenticated user
+ * Retrieves all novels created by the authenticated user with pagination and sorting
  * @async
  * @param {Object} req - Express request object
  * @param {Object} req.user - Authenticated user
+ * @param {Object} req.query - Query parameters (page, limit, sort, direction)
  * @param {Object} res - Express response object
- * @returns {Promise<Object>} JSON response with user's novels
+ * @returns {Promise<Object>} JSON response with user's novels and pagination info
  */
 export const viewMyNovels = async (req, res) => {
   try {
+    // Parse pagination
+    const pagination = parsePagination(req.query);
+    if (!pagination.valid) {
+      return sendErrorResponse(null, pagination.message, res, 400);
+    }
+    const { page, limit, skip } = pagination;
+
+    // Parse sort
+    const allowedSortFields = ['title', 'createdAt', 'updatedAt', 'statusPublish'];
+    const sort = parseSort(req.query);
+    if (!allowedSortFields.includes(Object.keys(sort)[0])) {
+      return sendErrorResponse(null, 'Trường sắp xếp không hợp lệ', res, 400);
+    }
+
+    // Fetch novels
     const novels = await Novel.find({ createdBy: req.user._id })
       .populate('attributes')
+      .skip(skip)
+      .limit(limit)
+      .sort(sort)
       .lean();
+
+    // Count total novels
+    const total = await Novel.countDocuments({ createdBy: req.user._id });
+    const message = novels.length > 0 ? 'Lấy truyện của tôi thành công' : 'Bạn chưa có truyện nào';
+
     return res.status(200).json({
       success: true,
-      message: 'Lấy truyện của tôi thành công',
+      message: message,
       data: novels,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
     return sendErrorResponse(error, 'Lỗi server khi lấy truyện của tôi', res, 500);
   }
 };
-
 /**
  * Retrieves a specific novel by ID
  * @async
@@ -182,9 +199,10 @@ export const viewMyNovels = async (req, res) => {
  */
 export const viewMyNovelById = async (req, res) => {
   try {
-    const novelId = await validateId(req.params.id, res);
-    if (!novelId) return;
-
+    const novelId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(novelId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
     const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id })
       .populate('attributes')
       .lean();
@@ -203,7 +221,7 @@ export const viewMyNovelById = async (req, res) => {
 };
 
 /**
- * Updates a novel's metadata
+ * Updates a novel's metadata when draft, and editing
  * @async
  * @param {Object} req - Express request object
  * @param {string} req.params.id - Novel ID
@@ -212,19 +230,35 @@ export const viewMyNovelById = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} JSON response confirming update
  */
+
 export const updateNovel = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const novelId = await validateId(req.params.id, res);
-    if (!novelId) return;
+    const novelId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(novelId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
+    // Fetch and validate novel
+    const novel = await Novel.findById(novelId);
+    const novelCheck = validateNovel(novel, req.user, ['editing', 'draft']);
+    if (!novelCheck.valid) {
+      return sendErrorResponse(null, novelCheck.message, res, 400);
+    }
 
     const { title, description, author, attributes, tags, status } = req.body;
 
     // Validate input
     const validationResult = validateInputWithSchema(
       { title, description, author, attributes, tags, status },
-      {},
+      {
+        title: novel.title,
+        description: novel.description,
+        author: novel.author,
+        attributes: novel.attributes,
+        tags: novel.tags,
+        status: novel.status,
+      },
       {
         title: novelSchemaRules.title,
         description: novelSchemaRules.description,
@@ -237,7 +271,9 @@ export const updateNovel = async (req, res) => {
     if (!validationResult.isValid) {
       return sendErrorResponse(null, JSON.stringify(validationResult.errors), res, 400);
     }
-
+    if (tags && tags.length > 10) {
+      return sendErrorResponse(null, 'Tối đa 10 thẻ được phép', res, 400);
+    }
     // Validate attributes
     if (attributes && attributes.length > 0) {
       const validAttributes = await NovelAttribute.find({
@@ -248,20 +284,8 @@ export const updateNovel = async (req, res) => {
         return sendErrorResponse(null, 'Một hoặc nhiều thuộc tính không hợp lệ', res, 400);
       }
     }
-
-    // Fetch and validate novel
-    const novel = await Novel.findById(novelId).session(session);
-    const novelCheck = validateNovel(novel, req.user, ['pending', 'editing', 'draft']);
-    if (!novelCheck.valid) {
-      return sendErrorResponse(null, novelCheck.message, res, 400);
-    }
-
-    // Check for duplicate title
-    if (title && title.trim() !== novel.title) {
-      const existingNovel = await Novel.findOne({ title: title.trim() }).lean();
-      if (existingNovel) {
-        return sendErrorResponse(null, 'Tiêu đề truyện đã tồn tại', res, 400);
-      }
+    if (!validationResult.hasChanges) {
+      return sendErrorResponse(null, 'Không có thay đổi nào trong dữ liệu', res, 400);
     }
 
     // Update novel
@@ -275,22 +299,23 @@ export const updateNovel = async (req, res) => {
       updatedAt: new Date(),
     };
 
-    await Novel.findByIdAndUpdate(novelId, { $set: updateData }, { session });
+    await Novel.findByIdAndUpdate(novelId, { $set: updateData });
+    if (novel.status === 'editing') {
+      // Log moderation action
+      const moderationResult = await moderationActionHandler({
+        action: MODERATION_ACTIONS.userNotice,
+        novelId: novel._id,
+        moderatorId: req.user._id,
+        recipientId: novel?.moderation?.moderator,
+        message: `${req.user.username} đã chỉnh sửa truyện ${novel.title}`,
+        logNote: `Chỉnh sửa truyện ${novel.title}`,
+      }, session);
 
-    // Log moderation action
-    const moderationResult = await moderationActionHandler({
-      action: MODERATION_ACTIONS.notice,
-      novelId: novel._id,
-      moderatorId: req.user._id,
-      recipientId: novel.createdBy,
-      message: `Truyện ${title || novel.title} đã được cập nhật bởi ${req.user.username}`,
-      logNote: `Cập nhật thông tin truyện ${title || novel.title}`,
-    }, session);
+      if (!moderationResult.success) {
+        return sendErrorResponse(null, moderationResult.message, res, 500);
+      }
 
-    if (!moderationResult.success) {
-      throw new Error(moderationResult.message);
     }
-
     await session.commitTransaction();
     return res.status(200).json({
       success: true,
@@ -305,8 +330,9 @@ export const updateNovel = async (req, res) => {
   }
 };
 
+//TODO: Need check
 /**
- * Updates a novel's cover image
+ * Updates a novel's cover image when draft, editing
  * @async
  * @param {Object} req - Express request object
  * @param {string} req.params.id - Novel ID
@@ -319,8 +345,10 @@ export const updateNovelCover = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const novelId = await validateId(req.params.id, res);
-    if (!novelId) return;
+    const novelId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(novelId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
     const { coverImage } = req.body;
 
@@ -347,21 +375,22 @@ export const updateNovelCover = async (req, res) => {
       { $set: { coverImage: coverImage?.trim() || undefined, updatedAt: new Date() } },
       { session }
     );
+    if (novel.status === 'editing') {
+      // Log moderation action
+      const moderationResult = await moderationActionHandler({
+        action: MODERATION_ACTIONS.userNotice,
+        novelId: novel._id,
+        moderatorId: req.user._id,
+        recipientId: novel?.moderation?.moderator,
+        message: `${req.user.username} đã cập nhật ảnh bìa truyện ${novel.title}`,
+        logNote: `Cập nhật ảnh bìa truyện ${novel.title}`,
+      }, session);
 
-    // Log moderation action
-    const moderationResult = await moderationActionHandler({
-      action: MODERATION_ACTIONS.notice,
-      novelId: novel._id,
-      moderatorId: req.user._id,
-      recipientId: novel.createdBy,
-      message: `Ảnh bìa truyện ${novel.title} đã được cập nhật bởi ${req.user.username}`,
-      logNote: `Cập nhật ảnh bìa truyện ${novel.title}`,
-    }, session);
+      if (!moderationResult.success) {
+        return sendErrorResponse(null, moderationResult.message, res, 500);
+      }
 
-    if (!moderationResult.success) {
-      throw new Error(moderationResult.message);
     }
-
     await session.commitTransaction();
     return res.status(200).json({
       success: true,
@@ -376,8 +405,9 @@ export const updateNovelCover = async (req, res) => {
   }
 };
 
+
 /**
- * Deletes a novel and its chapters
+ * Deletes a novel and its chapters when draft, editing
  * @async
  * @param {Object} req - Express request object
  * @param {string} req.params.id - Novel ID
@@ -389,12 +419,14 @@ export const deleteNovel = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const novelId = await validateId(req.params.id, res);
-    if (!novelId) return;
+    const novelId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(novelId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
     // Fetch and validate novel
     const novel = await Novel.findById(novelId).session(session);
-    const novelCheck = validateNovel(novel, req.user, ['pending', 'editing', 'draft']);
+    const novelCheck = validateNovel(novel, req.user, ['editing', 'draft', 'warning']);
     if (!novelCheck.valid) {
       return sendErrorResponse(null, novelCheck.message, res, 400);
     }
@@ -411,20 +443,6 @@ export const deleteNovel = async (req, res) => {
       { $pull: { uploadedNovels: novel._id } },
       { session }
     );
-
-    // Log moderation action
-    const moderationResult = await moderationActionHandler({
-      action: MODERATION_ACTIONS.notice,
-      novelId: novel._id,
-      moderatorId: req.user._id,
-      recipientId: novel.createdBy,
-      message: `Truyện ${novel.title} đã bị xóa bởi ${req.user.username}`,
-      logNote: `Xóa truyện ${novel.title}`,
-    }, session);
-
-    if (!moderationResult.success) {
-      throw new Error(moderationResult.message);
-    }
 
     await session.commitTransaction();
     return res.status(200).json({
@@ -452,8 +470,10 @@ export const requestPublish = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const novelId = await validateId(req.params.id, res);
-    if (!novelId) return;
+    const novelId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(novelId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
     // Fetch and validate novel
     const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id }).session(session);
@@ -464,8 +484,11 @@ export const requestPublish = async (req, res) => {
 
     // Check chapter count
     const chapterCount = await Chapter.countDocuments({ novelId });
-    if (chapterCount < 10) {
-      return sendErrorResponse(null, 'Truyện phải có ít nhất 10 chương', res, 400);
+    if (chapterCount < 0) {
+      return sendErrorResponse(null, 'Truyện phải có ít nhất 0 chương', res, 400);
+    }
+    if (!novel?.moderation?.moderator) {
+      return sendErrorResponse(null, 'Chưa có kiểm duyệt viên được gán cho truyện này', res, 400);
     }
 
     // Update status
@@ -477,16 +500,16 @@ export const requestPublish = async (req, res) => {
 
     // Log moderation action
     const moderationResult = await moderationActionHandler({
-      action: MODERATION_ACTIONS.notice,
+      action: MODERATION_ACTIONS.userNotice,
       novelId: novel._id,
       moderatorId: req.user._id,
-      recipientId: novel.createdBy,
-      message: `Yêu cầu xuất bản truyện ${novel.title} đã được gửi`,
+      recipientId: novel?.moderation?.moderator,
+      message: `${req.user.username} đã gửi yêu cầu xuất bản truyện ${novel.title}`,
       logNote: `Gửi yêu cầu xuất bản truyện ${novel.title}`,
     }, session);
 
     if (!moderationResult.success) {
-      throw new Error(moderationResult.message);
+      return sendErrorResponse(null, moderationResult.message, res, 500);
     }
 
     await session.commitTransaction();
@@ -515,35 +538,29 @@ export const requestEdit = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const novelId = await validateId(req.params.id, res);
-    if (!novelId) return;
-
+    const novelId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(novelId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
     // Fetch and validate novel
     const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id }).session(session);
-    const novelCheck = validateNovel(novel, req.user, ['approved']);
+    const novelCheck = validateNovel(novel, req.user, ['pending', 'warning', 'approved']);
     if (!novelCheck.valid) {
       return sendErrorResponse(null, novelCheck.message, res, 400);
     }
-
-    // Update status
-    await Novel.findByIdAndUpdate(
-      novelId,
-      { $set: { statusPublish: 'editing', updatedAt: new Date() } },
-      { session }
-    );
 
     // Log moderation action
     const moderationResult = await moderationActionHandler({
       action: MODERATION_ACTIONS.notice,
       novelId: novel._id,
       moderatorId: req.user._id,
-      recipientId: novel.createdBy,
-      message: `Yêu cầu chỉnh sửa truyện ${novel.title} đã được gửi`,
+      recipientId: novel?.moderation?.moderator,
+      message: `${req.user.username} đã gửi yêu cầu  chỉnh sửa truyện ${novel.title}`,
       logNote: `Gửi yêu cầu chỉnh sửa truyện ${novel.title}`,
     }, session);
 
     if (!moderationResult.success) {
-      throw new Error(moderationResult.message);
+      return sendErrorResponse(null, moderationResult.message, res, 500);
     }
 
     await session.commitTransaction();
@@ -572,8 +589,10 @@ export const cancelRequest = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const novelId = await validateId(req.params.id, res);
-    if (!novelId) return;
+    const novelId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(novelId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
     // Fetch and validate novel
     const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id }).session(session);
@@ -591,11 +610,11 @@ export const cancelRequest = async (req, res) => {
 
     // Log moderation action
     const moderationResult = await moderationActionHandler({
-      action: MODERATION_ACTIONS.notice,
+      action: MODERATION_ACTIONS.userNotice,
       novelId: novel._id,
       moderatorId: req.user._id,
-      recipientId: novel.createdBy,
-      message: `Yêu cầu cho truyện ${novel.title} đã bị hủy`,
+      recipientId: novel?.moderation?.moderator,
+      message: `${req.user.username} đã huỷ yêu cầu cho truyện ${novel.title}`,
       logNote: `Hủy yêu cầu cho truyện ${novel.title}`,
     }, session);
 
@@ -626,13 +645,15 @@ export const cancelRequest = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} JSON response confirming resubmission
  */
+//TODO: Need check
 export const resubmitNovel = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const novelId = await validateId(req.params.id, res);
-    if (!novelId) return;
-
+    const novelId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(novelId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
     const { title, description, author, attributes, tags, status } = req.body;
 
     // Validate input
@@ -654,11 +675,10 @@ export const resubmitNovel = async (req, res) => {
 
     // Fetch and validate novel
     const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id }).session(session);
-    const novelCheck = validateNovel(novel, req.user, ['rejected']);
+    const novelCheck = validateNovel(novel, req.user, ['editing', 'warning', 'rejected']);
     if (!novelCheck.valid) {
       return sendErrorResponse(null, novelCheck.message, res, 400);
     }
-
     // Check for duplicate title
     if (title && title.trim() !== novel.title) {
       const existingNovel = await Novel.findOne({ title: title.trim() }).lean();
@@ -703,7 +723,7 @@ export const resubmitNovel = async (req, res) => {
     }, session);
 
     if (!moderationResult.success) {
-      throw new Error(moderationResult.message);
+      return sendErrorResponse(null, moderationResult.message, res, 500);
     }
 
     await session.commitTransaction();
@@ -720,6 +740,7 @@ export const resubmitNovel = async (req, res) => {
   }
 };
 
+//TODO: Need check
 /**
  * Retracts a published novel
  * @async
@@ -733,8 +754,10 @@ export const retractNovel = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const novelId = await validateId(req.params.id, res);
-    if (!novelId) return;
+    const novelId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(novelId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
     // Fetch and validate novel
     const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id }).session(session);
@@ -746,7 +769,7 @@ export const retractNovel = async (req, res) => {
     // Update status
     await Novel.findByIdAndUpdate(
       novelId,
-      { $set: { statusPublish: 'retracted', updatedAt: new Date() } },
+      { $set: { statusPublish: 'draft', updatedAt: new Date() } },
       { session }
     );
 
@@ -755,13 +778,13 @@ export const retractNovel = async (req, res) => {
       action: MODERATION_ACTIONS.notice,
       novelId: novel._id,
       moderatorId: req.user._id,
-      recipientId: novel.createdBy,
-      message: `Truyện ${novel.title} đã được thu hồi`,
+      recipientId: novel?.moderation?.moderator,
+      message: `${req.user.username} đã thu hồi truyện ${novel.title}`,
       logNote: `Thu hồi truyện ${novel.title}`,
     }, session);
 
     if (!moderationResult.success) {
-      throw new Error(moderationResult.message);
+      return sendErrorResponse(null, moderationResult.message, res, 500);
     }
 
     await session.commitTransaction();
@@ -778,43 +801,102 @@ export const retractNovel = async (req, res) => {
 };
 
 /**
- * Retrieves statistics for a novel
+ * Retrieves statistics for novels of the authenticated user with pagination and sorting
  * @async
  * @param {Object} req - Express request object
- * @param {string} req.params.id - Novel ID
+ * @param {string} [req.params.id] - Optional Novel ID (if specified, get stats for single novel)
  * @param {Object} req.user - Authenticated user
+ * @param {Object} req.query - Query parameters (page, limit, sort, direction)
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} JSON response with novel statistics
  */
 export const getNovelStats = async (req, res) => {
   try {
-    const novelId = await validateId(req.params.id, res);
-    if (!novelId) return;
+    const novelId = req.params.id;
 
-    // Fetch and validate novel
-    const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id })
-      .populate('attributes')
-      .lean();
-    if (!novel) {
-      return sendErrorResponse(null, 'Truyện không tồn tại hoặc bạn không có quyền', res, 404);
+    if (novelId) {
+      // Single novel stats
+      if (!mongoose.Types.ObjectId.isValid(novelId)) {
+        return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+      }
+
+      const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id })
+        .populate('attributes')
+        .lean();
+      if (!novel) {
+        return sendErrorResponse(null, 'Truyện không tồn tại hoặc bạn không có quyền', res, 404);
+      }
+
+      const [stats] = await Novel.aggregate([
+        { $match: { _id: new mongoose.Types.ObjectId(novelId), createdBy: req.user._id } },
+        {
+          $lookup: { from: 'chapters', localField: '_id', foreignField: 'novelId', as: 'chapters' },
+        },
+        {
+          $project: {
+            viewCount: 1,
+            chapterCount: { $size: '$chapters' },
+            favoriteCount: { $size: '$favorites' },
+            reportCount: { $size: '$reports' },
+            averageRating: '$rates.averageRating',
+            ratingCount: '$rates.count',
+          },
+        },
+      ]);
+
+      if (!stats) {
+        return sendErrorResponse(null, 'Không tìm thấy thống kê', res, 404);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Lấy thống kê truyện thành công',
+        data: stats,
+      });
+    } else {
+      // Multiple novels stats with pagination and sorting
+      const pagination = parsePagination(req.query);
+      if (!pagination.valid) {
+        return sendErrorResponse(null, pagination.message, res, 400);
+      }
+      const { page, limit, skip } = pagination;
+
+      const allowedSortFields = ['viewCount', 'chapterCount', 'favoriteCount', 'reportCount', 'averageRating', 'ratingCount'];
+      const sort = parseSort(req.query);
+      if (!allowedSortFields.includes(Object.keys(sort)[0])) {
+        return sendErrorResponse(null, 'Trường sắp xếp không hợp lệ', res, 400);
+      }
+
+      const stats = await Novel.aggregate([
+        { $match: { createdBy: req.user._id } },
+        {
+          $lookup: { from: 'chapters', localField: '_id', foreignField: 'novelId', as: 'chapters' },
+        },
+        {
+          $project: {
+            title: 1,
+            viewCount: 1,
+            chapterCount: { $size: '$chapters' },
+            favoriteCount: { $size: '$favorites' },
+            reportCount: { $size: '$reports' },
+            averageRating: '$rates.averageRating',
+            ratingCount: '$rates.count',
+          },
+        },
+        { $sort: sort },
+        { $skip: skip },
+        { $limit: limit },
+      ]);
+
+      const total = await Novel.countDocuments({ createdBy: req.user._id });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Lấy thống kê truyện thành công',
+        data: stats,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      });
     }
-
-    // Aggregate statistics
-    const chapterCount = await Chapter.countDocuments({ novelId });
-    const stats = {
-      viewCount: novel.viewCount,
-      chapterCount,
-      favoriteCount: novel.favorites.length,
-      reportCount: novel.reports.length,
-      averageRating: novel.rates.averageRating,
-      ratingCount: novel.rates.count,
-    };
-
-    return res.status(200).json({
-      success: true,
-      message: 'Lấy thống kê truyện thành công',
-      data: stats,
-    });
   } catch (error) {
     return sendErrorResponse(error, 'Lỗi khi lấy thống kê truyện', res, 500);
   }
