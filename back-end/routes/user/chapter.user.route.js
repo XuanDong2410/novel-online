@@ -7,7 +7,7 @@ import {
     updateChapterMedia,
     deleteChapter, 
     requestPublish,
-    cancelRequestPublish,
+    cancelRequest,
     resubmitChapter,
     hideChapter,
     unhideChapter,
@@ -17,25 +17,25 @@ import {
 const router = express.Router();
 
 // CRUD Operations
-router.post("/", createChapter);
+router.post("/:novelId", createChapter);
 
-router.get('/', viewMyChapters);
-router.get('/:id', viewMyChapterById);
+router.get('/:novelId', viewMyChapters);
+router.get('/chapter/:chapterId', viewMyChapterById);
 
-router.patch('/:id', updateChapter);
-router.patch('/:id/update-media', updateChapterMedia);
-router.delete('/:id', deleteChapter);
+router.patch('/chapter/:chapterId', updateChapter);
+router.patch('/chapter/:chapterId/update-media', updateChapterMedia);
+router.delete('/chapter/:chapterId', deleteChapter);
 
 // Publishing Workflow
-router.post("/:id/request-publish", requestPublish);
-router.patch("/:id/cancel-request", cancelRequestPublish);
-router.patch("/:id/resubmit", resubmitChapter);
+router.post("/chapter/:chapterId/request-publish", requestPublish);
+router.patch("/chapter/:chapterId/cancel-request", cancelRequest);
+router.patch("/chapter/:chapterId/resubmit", resubmitChapter);
 
 // Visibility Control
-router.patch("/:id/hide", hideChapter);
-router.patch('/:id/unhide', unhideChapter);
+router.patch("/chapter/:chapterId/hide", hideChapter);
+router.patch('/chapter/:chapterId/unhide', unhideChapter);
 
 // Statistics
-router.get('/:id/stats', getChapterStats);
+router.get('/chapter/:chapterId/stats', getChapterStats);
 
 export default router;
