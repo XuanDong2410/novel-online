@@ -12,6 +12,7 @@ export const MODERATION_ACTIONS = {
   systemBan: 'systemBan',
   systemFlag: 'systemFlag',
   systemNotice: 'systemNotice',
-  report: 'report',
-  appeal: 'appeal',
+  userNotice: 'userNotice',
+  userReport: 'userReport',
+  userAppeal: 'userAppeal',
 };
