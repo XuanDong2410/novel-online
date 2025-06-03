@@ -162,7 +162,7 @@ export const viewMyNovels = async (req, res) => {
 
     // Count total novels
     const total = await Novel.countDocuments({ createdBy: req.user._id });
-    const message = novels.length > 0 ? 'Lấy truyện của tôi thành công' : 'Bạn chưa có truyện nào';
+    const message = total > 0 ? 'Lấy truyện của tôi thành công' : 'Bạn chưa có truyện nào';
 
     return res.status(200).json({
       success: true,
@@ -460,7 +460,6 @@ export const requestPublish = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(novelId)) {
       return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
     }
-
     // Fetch and validate novel
     const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id }).session(session);
     const novelCheck = await validateNovel(novel, req.user, ['draft']);
@@ -470,8 +469,8 @@ export const requestPublish = async (req, res) => {
 
     // Check chapter count
     const chapterCount = await Chapter.countDocuments({ novelId });
-    if (chapterCount < 0) {
-      return sendErrorResponse(null, 'Truyện phải có ít nhất 0 chương', res, 400);
+    if (chapterCount < 10) {
+      return sendErrorResponse(null, 'Truyện phải có ít nhất 10 chương', res, 400);
     }
     if (!novel?.moderation?.moderator) {
       return sendErrorResponse(null, 'Chưa có kiểm duyệt viên được gán cho truyện này', res, 400);

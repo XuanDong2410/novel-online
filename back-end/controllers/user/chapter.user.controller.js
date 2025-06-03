@@ -2,10 +2,13 @@ import mongoose from 'mongoose';
 import Chapter from '../../models/chapter.model.js';
 import Novel from '../../models/novel.model.js';
 import User from '../../models/user.model.js';
+
 import { validateInputWithSchema, mongooseSchemaToValidatorRules, standardValidators } from '../../utils/validator/inputValidator.js';
+import { validateChapter } from '../../utils/validator/ownValidator.js';
 import { MODERATION_ACTIONS } from '../../utils/moderation/constants/action.js';
 import { moderationActionHandler } from '../../utils/moderation/moderationActionHandler.js';
-
+import { sendErrorResponse } from '../../utils/sendErrorResponse.js';
+import { parsePagination, parseSort } from '../../utils/moderation/helper/pagination.js';
 // Convert Mongoose schema to validation rules for Chapter
 const chapterSchemaRules = mongooseSchemaToValidatorRules(Chapter.schema);
 chapterSchemaRules.contentUrl.validate = standardValidators.url;
@@ -17,56 +20,28 @@ chapterSchemaRules.novelId.crossValidate = async (data) => {
   return novel ? true : 'Novel does not exist';
 };
 
-/**
- * Sends standardized error response
- * @param {Error|null} error - Error object, if any
- * @param {string} message - Error message
- * @param {Object} res - Express response object
- * @param {number} status - HTTP status code
- */
-function sendErrorResponse(error, message, res, status) {
-  return res.status(status).json({
-    success: false,
-    message,
-    error: error ? error.message : undefined,
-  });
-}
 
-/**
- * Validates ObjectId and returns it if valid
- * @param {string} id - ObjectId to validate
- * @param {Object} res - Express response object
- * @returns {string|null} Valid ObjectId or null if invalid
- */
-async function validateId(id, res) {
-  const validationResult = validateInputWithSchema({ id }, {}, { id: { type: 'objectid', required: true } });
-  if (!validationResult.isValid) {
-    sendErrorResponse(null, validationResult.errors.id[0], res, 400);
-    return null;
-  }
-  return id;
-}
+// /**
+//  * Validates chapter existence and permissions
+//  * @param {Object} chapter - Chapter document
+//  * @param {Object} user - Authenticated user
+//  * @param {string[]} allowedStatuses - Allowed status values
+//  * @returns {Object} - { valid: boolean, message: string }
+//  */
 
-/**
- * Validates chapter existence and permissions
- * @param {Object} chapter - Chapter document
- * @param {Object} user - Authenticated user
- * @param {string[]} allowedStatuses - Allowed status values
- * @returns {Object} - { valid: boolean, message: string }
- */
-function validateChapter(chapter, user, allowedStatuses = []) {
-  if (!chapter) {
-    return { valid: false, message: 'Chương không tồn tại' };
-  }
-  if (allowedStatuses.length && !allowedStatuses.includes(chapter.status)) {
-    return { valid: false, message: `Chương không ở trạng thái cho phép: ${allowedStatuses.join(', ')}` };
-  }
-  const novel = Novel.findById(chapter.novelId).lean();
-  if (!novel || (novel.createdBy.toString() !== user._id.toString() && !['moderator', 'admin'].includes(user.role))) {
-    return { valid: false, message: 'Không có quyền thực hiện hành động này' };
-  }
-  return { valid: true, message: '' };
-}
+// async function validateChapter(chapter, user, allowedStatuses = []) {
+//   if (!chapter) {
+//     return { valid: false, message: 'Chương không tồn tại' };
+//   }
+//   if (allowedStatuses.length && !allowedStatuses.includes(chapter.status)) {
+//     return { valid: false, message: `Chương không ở trạng thái cho phép: ${allowedStatuses.join(', ')}` };
+//   }
+//   const novel = Novel.findById(chapter.novelId).lean();
+//   if (!novel || (novel.createdBy.toString() !== user._id.toString())) {
+//     return { valid: false, message: 'Không có quyền thực hiện hành động này' };
+//   }
+//   return { valid: true, message: '' };
+// }
 
 /**
  * Creates a new chapter
@@ -81,20 +56,20 @@ export const createChapter = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { title, content, contentUrl, chapterNumber, audioFileUrl, subtitleFileUrl, novelId } = req.body;
+    const novelId = req.params.novelId;
+    if (!mongoose.Types.ObjectId.isValid(novelId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
+    const { title, content, chapterNumber } = req.body;
 
     // Validate input
     const validationResult = validateInputWithSchema(
-      { title, content, contentUrl, chapterNumber, audioFileUrl, subtitleFileUrl, novelId },
+      { title, content, chapterNumber },
       {},
       {
         title: chapterSchemaRules.title,
         content: chapterSchemaRules.content,
-        contentUrl: chapterSchemaRules.contentUrl,
         chapterNumber: chapterSchemaRules.chapterNumber,
-        audioFileUrl: chapterSchemaRules.audioFileUrl,
-        subtitleFileUrl: chapterSchemaRules.subtitleFileUrl,
-        novelId: chapterSchemaRules.novelId,
       }
     );
     if (!validationResult.isValid) {
@@ -117,41 +92,25 @@ export const createChapter = async (req, res) => {
     const newChapter = new Chapter({
       title: title.trim(),
       content: content.trim(),
-      contentUrl: contentUrl.trim(),
       chapterNumber,
-      audioFileUrl: audioFileUrl?.trim(),
-      subtitleFileUrl: subtitleFileUrl?.trim(),
       novelId,
       status: 'draft',
-      isPublished: false,
     });
 
     await newChapter.save({ session });
 
     // Update novel's chapter count and latestChapter
+    const latestChapter = await Chapter.findOne({ novelId })
+      .sort({ chapterNumber: -1 })
+      .lean();
     await Novel.findByIdAndUpdate(
       novelId,
-      { 
+      {
         $inc: { 'chapters.count': 1 },
-        $set: { 'chapters.latestChapter': newChapter._id, updatedAt: new Date() }
+        $set: { 'chapters.latestChapter': latestChapter, updatedAt: new Date() }
       },
       { session }
     );
-
-    // Log moderation action
-    const moderationResult = await moderationActionHandler({
-      action: MODERATION_ACTIONS.notice,
-      novelId,
-      chapterId: newChapter._id,
-      moderatorId: req.user._id,
-      recipientId: novel.createdBy,
-      message: `Chương ${newChapter.title} đã được tạo cho truyện ${novel.title}`,
-      logNote: `Tạo chương ${newChapter.title}`,
-    }, session);
-
-    if (!moderationResult.success) {
-      throw new Error(moderationResult.message);
-    }
 
     await session.commitTransaction();
     return res.status(201).json({
@@ -178,31 +137,49 @@ export const createChapter = async (req, res) => {
  */
 export const viewMyChapters = async (req, res) => {
   try {
-    const { novelId } = req.query;
-    const query = novelId ? { novelId, createdBy: req.user._id } : { createdBy: req.user._id };
-
+    const novelId = req.params.novelId;
+    if (!mongoose.Types.ObjectId.isValid(novelId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
     // Validate novelId if provided
-    if (novelId) {
-      const validationResult = validateInputWithSchema({ novelId }, {}, { novelId: { type: 'objectid', required: true } });
-      if (!validationResult.isValid) {
-        return sendErrorResponse(null, validationResult.errors.novelId[0], res, 400);
-      }
-      const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id }).lean();
-      if (!novel) {
-        return sendErrorResponse(null, 'Truyện không tồn tại hoặc bạn không có quyền', res, 404);
-      }
+
+    const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id });
+    if (!novel) {
+      return sendErrorResponse(null, 'Truyện không tồn tại hoặc bạn không có quyền', res, 404);
     }
 
-    const chapters = await Chapter.find(query)
-      .populate('novelId', 'title')
-      .sort({ chapterNumber: 1 })
+    // Parse pagination
+    const pagination = parsePagination(req.query);
+    if (!pagination.valid) {
+      return sendErrorResponse(null, pagination.message, res, 400);
+    }
+    const { page, limit, skip } = pagination;
+    // Parse sort
+    const allowedSortFields = ['title', 'createdAt', 'updatedAt', 'chapterNumber', 'status'];
+    const sort = parseSort(req.query);
+    if (!allowedSortFields.includes(Object.keys(sort)[0])) {
+      return sendErrorResponse(null, 'Trường sắp xếp không hợp lệ', res, 400);
+    }
+    const chapters = await Chapter.find({ novelId })
+      .populate('title')
+      .skip(skip)
+      .limit(limit)
+      .sort(sort)
       .lean();
-
+    const total = await Chapter.countDocuments({ novelId: novelId });
+    const message = total ? `Lấy danh sách chương của truyện "${novel.title}" thành công` : `Truyện "${novel.title}" chưa có chương nào.`;
     return res.status(200).json({
       success: true,
-      message: 'Lấy danh sách chương thành công',
+      message: message,
       data: chapters,
-    });
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    }
+    );
   } catch (error) {
     return sendErrorResponse(error, 'Lỗi server khi lấy danh sách chương', res, 500);
   }
@@ -219,14 +196,15 @@ export const viewMyChapters = async (req, res) => {
  */
 export const viewMyChapterById = async (req, res) => {
   try {
-    const chapterId = await validateId(req.params.id, res);
-    if (!chapterId) return;
-
+    const chapterId = req.params.chapterId;
+    if (!mongoose.Types.ObjectId.isValid(chapterId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
     const chapter = await Chapter.findById(chapterId)
-      .populate('novelId', 'title')
+      .populate('title')
       .lean();
-    const novel = await Novel.findById(chapter.novelId).lean();
-    const chapterCheck = validateChapter(chapter, req.user);
+    const chapterCheck = await validateChapter(chapter, req.user);
+
     if (!chapterCheck.valid) {
       return sendErrorResponse(null, chapterCheck.message, res, 404);
     }
@@ -255,22 +233,21 @@ export const updateChapter = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const chapterId = await validateId(req.params.id, res);
-    if (!chapterId) return;
+    const chapterId = req.params.chapterId;
+    if (!mongoose.Types.ObjectId.isValid(chapterId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
-    const { title, content, contentUrl, chapterNumber, audioFileUrl, subtitleFileUrl } = req.body;
+    const { title, content, chapterNumber } = req.body;
 
     // Validate input
     const validationResult = validateInputWithSchema(
-      { title, content, contentUrl, chapterNumber, audioFileUrl, subtitleFileUrl },
+      { title, content, chapterNumber },
       {},
       {
         title: chapterSchemaRules.title,
         content: chapterSchemaRules.content,
-        contentUrl: chapterSchemaRules.contentUrl,
         chapterNumber: chapterSchemaRules.chapterNumber,
-        audioFileUrl: chapterSchemaRules.audioFileUrl,
-        subtitleFileUrl: chapterSchemaRules.subtitleFileUrl,
       }
     );
     if (!validationResult.isValid) {
@@ -279,7 +256,7 @@ export const updateChapter = async (req, res) => {
 
     // Fetch and validate chapter
     const chapter = await Chapter.findById(chapterId).session(session);
-    const chapterCheck = validateChapter(chapter, req.user, ['draft', 'editing', 'pending']);
+    const chapterCheck = await validateChapter(chapter, req.user, ['draft', 'editing']);
     if (!chapterCheck.valid) {
       return sendErrorResponse(null, chapterCheck.message, res, 400);
     }
@@ -296,10 +273,7 @@ export const updateChapter = async (req, res) => {
     const updateData = {
       ...(title && { title: title.trim() }),
       ...(content && { content: content.trim() }),
-      ...(contentUrl && { contentUrl: contentUrl.trim() }),
       ...(chapterNumber && { chapterNumber }),
-      ...(audioFileUrl && { audioFileUrl: audioFileUrl.trim() }),
-      ...(subtitleFileUrl && { subtitleFileUrl: subtitleFileUrl.trim() }),
       updatedAt: new Date(),
     };
 
@@ -312,27 +286,27 @@ export const updateChapter = async (req, res) => {
         .lean();
       await Novel.findByIdAndUpdate(
         chapter.novelId,
-        { $set: { 'chapters.latestChapter': latestChapter._id, updatedAt: new Date() } },
+        { $set: { 'chapters.latestChapter': latestChapter, updatedAt: new Date() } },
         { session }
       );
     }
+    if (chapter.status === 'editing') {
+      // Log moderation action
+      const novel = await Novel.findById(chapter.novelId).lean();
+      const moderationResult = await moderationActionHandler({
+        action: MODERATION_ACTIONS.notice,
+        novelId: chapter.novelId,
+        chapterId: chapter._id,
+        moderatorId: req.user._id,
+        recipientId: novel?.moderation?.moderator,
+        message: `Chương ${chapter.title} đã được cập nhật (${novel.title})`,
+        logNote: `Cập nhật chương ${chapter.title}`,
+      }, session);
 
-    // Log moderation action
-    const novel = await Novel.findById(chapter.novelId).lean();
-    const moderationResult = await moderationActionHandler({
-      action: MODERATION_ACTIONS.notice,
-      novelId: chapter.novelId,
-      chapterId: chapter._id,
-      moderatorId: req.user._id,
-      recipientId: novel.createdBy,
-      message: `Chương ${title || chapter.title} đã được cập nhật`,
-      logNote: `Cập nhật chương ${title || chapter.title}`,
-    }, session);
-
-    if (!moderationResult.success) {
-      throw new Error(moderationResult.message);
+      if (!moderationResult.success) {
+        throw new Error(moderationResult.message);
+      }
     }
-
     await session.commitTransaction();
     return res.status(200).json({
       success: true,
@@ -357,12 +331,15 @@ export const updateChapter = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} JSON response confirming update
  */
+//TODO: need check
 export const updateChapterMedia = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const chapterId = await validateId(req.params.id, res);
-    if (!chapterId) return;
+    const chapterId = req.params.chapterId;
+    if (!mongoose.Types.ObjectId.isValid(chapterId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
     const { audioFileUrl, subtitleFileUrl } = req.body;
 
@@ -381,7 +358,7 @@ export const updateChapterMedia = async (req, res) => {
 
     // Fetch and validate chapter
     const chapter = await Chapter.findById(chapterId).session(session);
-    const chapterCheck = validateChapter(chapter, req.user, ['draft', 'editing', 'pending']);
+    const chapterCheck = await validateChapter(chapter, req.user, ['draft', 'editing', 'pending']);
     if (!chapterCheck.valid) {
       return sendErrorResponse(null, chapterCheck.message, res, 400);
     }
@@ -438,12 +415,14 @@ export const deleteChapter = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const chapterId = await validateId(req.params.id, res);
-    if (!chapterId) return;
+    const chapterId = req.params.chapterId;
+    if (!mongoose.Types.ObjectId.isValid(chapterId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
     // Fetch and validate chapter
     const chapter = await Chapter.findById(chapterId).session(session);
-    const chapterCheck = validateChapter(chapter, req.user, ['draft', 'editing', 'pending']);
+    const chapterCheck = await validateChapter(chapter, req.user, ['draft', 'editing']);
     if (!chapterCheck.valid) {
       return sendErrorResponse(null, chapterCheck.message, res, 400);
     }
@@ -458,32 +437,33 @@ export const deleteChapter = async (req, res) => {
       .lean();
     await Novel.findByIdAndUpdate(
       chapter.novelId,
-      { 
-        $set: { 
+      {
+        $set: {
           'chapters.count': chapterCount,
           'chapters.latestChapter': latestChapter ? latestChapter._id : null,
           updatedAt: new Date()
         }
       },
       { session }
-    );
+    )
+    if (chapter.status === 'editing') {
 
-    // Log moderation action
-    const novel = await Novel.findById(chapter.novelId).lean();
-    const moderationResult = await moderationActionHandler({
-      action: MODERATION_ACTIONS.notice,
-      novelId: chapter.novelId,
-      chapterId: chapter._id,
-      moderatorId: req.user._id,
-      recipientId: novel.createdBy,
-      message: `Chương ${chapter.title} đã bị xóa`,
-      logNote: `Xóa chương ${chapter.title}`,
-    }, session);
+      // Log moderation action
+      const novel = await Novel.findById(chapter.novelId).lean();
+      const moderationResult = await moderationActionHandler({
+        action: MODERATION_ACTIONS.notice,
+        novelId: chapter.novelId,
+        chapterId: chapter._id,
+        moderatorId: req.user._id,
+        recipientId: novel?.moderation?.moderator,
+        message: `Chương ${chapter.title} đã bị xóa (${novel.title})`,
+        logNote: `Xóa chương ${chapter.title}`,
+      }, session);
 
-    if (!moderationResult.success) {
-      throw new Error(moderationResult.message);
+      if (!moderationResult.success) {
+        throw new Error(moderationResult.message);
+      }
     }
-
     await session.commitTransaction();
     return res.status(200).json({
       success: true,
@@ -510,12 +490,14 @@ export const requestPublish = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const chapterId = await validateId(req.params.id, res);
-    if (!chapterId) return;
+    const chapterId = req.params.chapterId;
+    if (!mongoose.Types.ObjectId.isValid(chapterId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
     // Fetch and validate chapter
     const chapter = await Chapter.findById(chapterId).session(session);
-    const chapterCheck = validateChapter(chapter, req.user, ['draft']);
+    const chapterCheck = await validateChapter(chapter, req.user, ['draft']);
     if (!chapterCheck.valid) {
       return sendErrorResponse(null, chapterCheck.message, res, 400);
     }
@@ -534,9 +516,9 @@ export const requestPublish = async (req, res) => {
       novelId: chapter.novelId,
       chapterId: chapter._id,
       moderatorId: req.user._id,
-      recipientId: novel.createdBy,
-      message: `Yêu cầu xuất bản chương ${chapter.title} đã được gửi`,
-      logNote: `Gửi yêu cầu xuất bản chương ${chapter.title}`,
+      recipientId: novel?.moderation?.moderator,
+      message: `Yêu cầu xuất bản chương ${chapter.title} - ${novel.title} đã được gửi`,
+      logNote: `Gửi yêu cầu xuất bản chương ${chapter.title} - ${novel.title }`,
     }, session);
 
     if (!moderationResult.success) {
@@ -555,7 +537,59 @@ export const requestPublish = async (req, res) => {
     session.endSession();
   }
 };
+/**
+ * Requests to edit a chapter
+ * @async
+ * @param {Object} req - Express request object
+ * @param {string} req.params.id - Chapter ID
+ * @param {Object} req.user - Authenticated user
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} JSON response confirming request
+ */
+export const requestEdit = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const chapterId = req.params.chapterId;
+    if (!mongoose.Types.ObjectId.isValid(chapterId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
+    // Fetch and validate chapter
+    const chapter = await Chapter.findById(chapterId).session(session);
+    const chapterCheck = await validateChapter(chapter, req.user, ['pending', 'warning', 'approved']);
+    if (!chapterCheck.valid) {
+      return sendErrorResponse(null, chapterCheck.message, res, 400);
+    }
+
+    // Log moderation action
+    const novel = await Novel.findById(chapter.novelId).lean();
+    const moderationResult = await moderationActionHandler({
+      action: MODERATION_ACTIONS.notice,
+      novelId: chapter.novelId,
+      chapterId: chapter._id,
+      moderatorId: req.user._id,
+      recipientId: novel?.moderation?.moderator,
+      message: `Gửi yêu cầu chỉnh sửa chương ${chapter.title} - ${novel.title}`,
+      logNote: `Gửi yêu cầu chỉnh sửa chương ${chapter.title} - ${novel.title }`,
+    }, session);
+
+    if (!moderationResult.success) {
+      throw new Error(moderationResult.message);
+    }
+
+    await session.commitTransaction();
+    return res.status(200).json({
+      success: true,
+      message: 'Yêu cầu chỉnh sửa chương đã được gửi',
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    return sendErrorResponse(error, 'Lỗi server khi gửi yêu cầu chỉnh sửa chương', res, 500);
+  } finally {
+    session.endSession();
+  }
+};
 /**
  * Cancels a pending or editing request for a chapter
  * @async
@@ -565,16 +599,18 @@ export const requestPublish = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} JSON response confirming cancellation
  */
-export const cancelRequestPublish = async (req, res) => {
+export const cancelRequest = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const chapterId = await validateId(req.params.id, res);
-    if (!chapterId) return;
+    const chapterId = req.params.chapterId;
+    if (!mongoose.Types.ObjectId.isValid(chapterId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
     // Fetch and validate chapter
     const chapter = await Chapter.findById(chapterId).session(session);
-    const chapterCheck = validateChapter(chapter, req.user, ['pending', 'editing']);
+    const chapterCheck = await validateChapter(chapter, req.user, ['pending', 'editing']);
     if (!chapterCheck.valid) {
       return sendErrorResponse(null, chapterCheck.message, res, 400);
     }
@@ -593,7 +629,7 @@ export const cancelRequestPublish = async (req, res) => {
       novelId: chapter.novelId,
       chapterId: chapter._id,
       moderatorId: req.user._id,
-      recipientId: novel.createdBy,
+      recipientId: novel?.moderation?.moderator,
       message: `Yêu cầu xuất bản chương ${chapter.title} đã bị hủy`,
       logNote: `Hủy yêu cầu xuất bản chương ${chapter.title}`,
     }, session);
@@ -625,12 +661,15 @@ export const cancelRequestPublish = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} JSON response confirming resubmission
  */
+//TODO: need check
 export const resubmitChapter = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const chapterId = await validateId(req.params.id, res);
-    if (!chapterId) return;
+    const chapterId = req.params.chapterId;
+    if (!mongoose.Types.ObjectId.isValid(chapterId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
     const { title, content, contentUrl, chapterNumber, audioFileUrl, subtitleFileUrl } = req.body;
 
@@ -653,7 +692,7 @@ export const resubmitChapter = async (req, res) => {
 
     // Fetch and validate chapter
     const chapter = await Chapter.findById(chapterId).session(session);
-    const chapterCheck = validateChapter(chapter, req.user, ['rejected']);
+    const chapterCheck = await validateChapter(chapter, req.user, ['rejected']);
     if (!chapterCheck.valid) {
       return sendErrorResponse(null, chapterCheck.message, res, 400);
     }
@@ -735,8 +774,10 @@ export const hideChapter = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const chapterId = await validateId(req.params.id, res);
-    if (!chapterId) return;
+    const chapterId = req.params.chapterId;
+    if (!mongoose.Types.ObjectId.isValid(chapterId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
     // Fetch chapter
     const chapter = await Chapter.findById(chapterId).session(session);
@@ -752,8 +793,8 @@ export const hideChapter = async (req, res) => {
     // Update hidden status
     await Chapter.findByIdAndUpdate(
       chapterId,
-      { 
-        $set: { 
+      {
+        $set: {
           isPublished: false,
           status: 'retracted',
           updatedAt: new Date(),
@@ -806,8 +847,10 @@ export const unhideChapter = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const chapterId = await validateId(req.params.id, res);
-    if (!chapterId) return;
+    const chapterId = req.params.chapterId;
+    if (!mongoose.Types.ObjectId.isValid(chapterId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
     // Fetch chapter
     const chapter = await Chapter.findById(chapterId).session(session);
@@ -823,8 +866,8 @@ export const unhideChapter = async (req, res) => {
     // Update hidden status
     await Chapter.findByIdAndUpdate(
       chapterId,
-      { 
-        $set: { 
+      {
+        $set: {
           isPublished: true,
           status: 'approved',
           updatedAt: new Date(),
@@ -875,14 +918,16 @@ export const unhideChapter = async (req, res) => {
  */
 export const getChapterStats = async (req, res) => {
   try {
-    const chapterId = await validateId(req.params.id, res);
-    if (!chapterId) return;
+    const chapterId = req.params.chapterId;
+    if (!mongoose.Types.ObjectId.isValid(chapterId)) {
+      return sendErrorResponse(null, 'ID không hợp lệ', res, 400);
+    }
 
     // Fetch and validate chapter
     const chapter = await Chapter.findById(chapterId)
       .populate('novelId', 'title')
       .lean();
-    const chapterCheck = validateChapter(chapter, req.user);
+    const chapterCheck = await validateChapter(chapter, req.user);
     if (!chapterCheck.valid) {
       return sendErrorResponse(null, chapterCheck.message, res, 404);
     }
