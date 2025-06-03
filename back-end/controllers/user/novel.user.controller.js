@@ -7,27 +7,13 @@ import { validateInputWithSchema, mongooseSchemaToValidatorRules, standardValida
 import { MODERATION_ACTIONS } from '../../utils/moderation/constants/action.js';
 import { moderationActionHandler } from '../../utils/moderation/moderationActionHandler.js';
 import { parsePagination, parseSort } from '../../utils/moderation/helper/pagination.js';
+import { sendErrorResponse } from '../../utils/sendErrorResponse.js';
+
 // Convert Mongoose schema to validation rules for Novel
 const novelSchemaRules = mongooseSchemaToValidatorRules(Novel.schema);
 novelSchemaRules.coverImage.validate = standardValidators.url; // Add URL validation for coverImage
 novelSchemaRules.tags.items = { type: 'string', maxLength: 50, trim: true, lowercase: true };
 novelSchemaRules.attributes.items = { type: 'objectid' };
-
-/**
- * Sends standardized error response
- * @param {Error|null} error - Error object, if any
- * @param {string} message - Error message
- * @param {Object} res - Express response object
- * @param {number} status - HTTP status code
- */
-function sendErrorResponse(error, message, res, status) {
-  return res.status(status).json({
-    success: false,
-    message,
-    error: error ? error.message : undefined,
-  });
-}
-
 
 
 /**
