@@ -1,7 +1,7 @@
 
 export function parsePagination(query, defaultLimit = 10, maxLimit = 100) {
-  const rawPage = parseInt(query.page);
-  const rawLimit = parseInt(query.limit);
+  const rawPage = parseInt(String(query.page));
+  const rawLimit = parseInt(String(query.limit || defaultLimit));
 
   if (isNaN(rawPage) || rawPage < 1) {
     return { valid: false, message: "Trang không hợp lệ" };
@@ -17,9 +17,9 @@ export function parsePagination(query, defaultLimit = 10, maxLimit = 100) {
   return { page, limit, skip, valid: true };
 }
 
-export function parseSort(query, defaultSort = "createdAt") {
-  const sortBy = query.sort || defaultSort;
-  const sortOrder = query.direction === "desc" ? -1 : 1;
+export function parseSort(query, defaultSort = "createdAt", allowedSortFields = []) {
+  const sortBy = query.sort && allowedSortFields.includes(query.sort) ? query.sort : defaultSort;
+  const direction = query.direction === "desc" ? 'desc' : 'asc';
 
-  return { [sortBy]: sortOrder };
+  return { [sortBy]: direction === 'desc' ? -1 : 1 };
 }

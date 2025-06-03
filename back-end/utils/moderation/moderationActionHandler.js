@@ -7,7 +7,7 @@ export const moderationActionHandler = async ({
   action, // Loại hành động: 'approved', 'edit', 'rejected', 'flagged'
   novelId = null, // ID của truyện
   chapterId = null, // ID của chương (nếu có)
-  moderatorId = null, // ID của kiểm duyệt viên
+  moderatorId = null, // ID của người thực hiện hành động (nếu có)
   recipientId, // ID của người nhận thông báo
   message, // Nội dung thông báo
   logNote = "Không có ghi chú", // Ghi chú cho log
@@ -29,22 +29,12 @@ export const moderationActionHandler = async ({
 
     if (isSystemAction) {
       effectiveModeratorId = await getSystemUserId(); // Lấy _id của tài khoản hệ thống
-    } else if (moderatorId) {
-      const moderator = await User.findById(moderatorId);
-      if (
-        !moderator ||
-        !["moderator", "admin", "system"].includes(moderator.role)
-      ) {
-        return {
-          success: false,
-          message: "Không có quyền thực hiện hành động này",
-        };
-      }
-    }
+    } 
     const recipient = await User.findById(recipientId);
     if (!recipient) {
       return { success: false, message: "Không tìm thấy người nhận thông báo" };
     }
+
     // 1. Gửi thông báo
     const notification = await Notification.create({
       from: effectiveModeratorId || null,
@@ -60,7 +50,7 @@ export const moderationActionHandler = async ({
       moderator: effectiveModeratorId,
       action,
       note: logNote,
-      details,
+      details: details ? details : message,
       isSystemAction,
     });
     return {
@@ -91,8 +81,9 @@ export const getNotificationType = (action) => {
     [MODERATION_ACTIONS.systemBan]: "systemNotice",
     [MODERATION_ACTIONS.systemFlag]: "systemNotice",
     [MODERATION_ACTIONS.systemNotice]: "systemNotice",
-    [MODERATION_ACTIONS.report]: "report",
-    [MODERATION_ACTIONS.appeal]: "appeal",
+    [MODERATION_ACTIONS.userNotice]: "userNotice",
+    [MODERATION_ACTIONS.userReport]: "userReport",
+    [MODERATION_ACTIONS.userAppeal]: "userAppeal",
   };
   return notificationTypeMap[action] || "adminNotice";
 };
