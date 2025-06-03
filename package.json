@@ -34,6 +34,7 @@
 		"node-webvtt": "^1.9.4",
 		"openai": "^4.104.0",
 		"p-limit": "^6.2.0",
+		"redis": "^5.1.1",
 		"slugify": "^1.6.6",
 		"socket.io": "^4.8.1",
 		"webvtt": "^0.0.2"

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import ModerationLog from '../../models/moderationLog.model.js';
-import { validateInputWithSchema } from '../../utils/validator.js';
+import ModerationLog from '../../models/log.model.js';
+import { validateInputWithSchema, mongooseSchemaToValidatorRules } from '../../utils/validator/inputValidator.js';
 import { MODERATION_ACTIONS } from '../../utils/moderation/constants/action.js';
 import { moderationActionHandler } from '../../utils/moderation/moderationActionHandler.js';
 

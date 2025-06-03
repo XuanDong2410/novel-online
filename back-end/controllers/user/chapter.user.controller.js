@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import Chapter from '../../models/chapter.model.js';
 import Novel from '../../models/novel.model.js';
 import User from '../../models/user.model.js';
-import { mongooseSchemaToValidatorRules, validateInputWithSchema, standardValidators } from '../../utils/validator.js';
+import { validateInputWithSchema, mongooseSchemaToValidatorRules, standardValidators } from '../../utils/validator/inputValidator.js';
 import { MODERATION_ACTIONS } from '../../utils/moderation/constants/action.js';
 import { moderationActionHandler } from '../../utils/moderation/moderationActionHandler.js';
 

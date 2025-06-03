@@ -16,7 +16,7 @@
  * };
  * const result = validateInputWithSchema({ username: 'john', email: 'john@example.com' }, {}, schema);
  */
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
 /**
  * Convert Mongoose schema to validation rules.
  * @param {mongoose.Schema} mongooseSchema

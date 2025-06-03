@@ -3,7 +3,7 @@ import Appeal from '../../models/appeal.model.js';
 import User from '../../models/user.model.js';
 import Novel from '../../models/novel.model.js';
 import Chapter from '../../models/chapter.model.js';
-import { mongooseSchemaToValidatorRules, validateInputWithSchema } from '../../utils/validator.js';
+import { validateInputWithSchema, mongooseSchemaToValidatorRules } from '../../utils/validator/inputValidator.js';
 import { MODERATION_ACTIONS } from '../../utils/moderation/constants/action.js';
 import { moderationActionHandler } from '../../utils/moderation/moderationActionHandler.js';
 

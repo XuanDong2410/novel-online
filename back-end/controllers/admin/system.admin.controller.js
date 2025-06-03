@@ -1,12 +1,10 @@
 import mongoose from 'mongoose';
-import Announcement from '../../models/announcement.model.js';
-import Tag from '../../models/tag.model.js';
-import Category from '../../models/category.model.js';
+import {Announcement, Tag, Category} from '../../models/system.model.js';
 import User from '../../models/user.model.js';
 import Novel from '../../models/novel.model.js';
 import Chapter from '../../models/chapter.model.js';
 import Report from '../../models/report.model.js';
-import { validateInputWithSchema, mongooseSchemaToValidatorRules } from '../../utils/validator.js';
+import { validateInputWithSchema, mongooseSchemaToValidatorRules } from '../../utils/validator/inputValidator.js';
 import { MODERATION_ACTIONS } from '../../utils/moderation/constants/action.js';
 import { moderationActionHandler } from '../../utils/moderation/moderationActionHandler.js';
 import Redis from 'redis'; // Giả định sử dụng Redis cho cache

@@ -9,6 +9,7 @@ import {
     requestPublish,
     requestEdit,
     cancelRequest,
+    resubmitNovel,
     retractNovel,
     getNovelStats,
 } from "../../controllers/user/novel.user.controller.js";

@@ -1,9 +1,9 @@
 import mongoose from 'mongoose';
 import Novel from '../../models/novel.model.js';
-import NovelAttribute from '../../models/novelAttribute.model.js';
+import NovelAttribute from '../../models/novel.model.js';
 import User from '../../models/user.model.js';
 import Chapter from '../../models/chapter.model.js';
-import { mongooseSchemaToValidatorRules, validateInputWithSchema, standardValidators } from '../../utils/validator.js';
+import { validateInputWithSchema, mongooseSchemaToValidatorRules, standardValidators } from '../../utils/validator/inputValidator.js';
 import { MODERATION_ACTIONS } from '../../utils/moderation/constants/action.js';
 import { moderationActionHandler } from '../../utils/moderation/moderationActionHandler.js';
 
@@ -57,7 +57,7 @@ function validateNovel(novel, user, allowedStatuses = []) {
   if (allowedStatuses.length && !allowedStatuses.includes(novel.statusPublish)) {
     return { valid: false, message: `Truyện không ở trạng thái cho phép: ${allowedStatuses.join(', ')}` };
   }
-  if (novel.createdBy.toString() !== user._id.toString() && !['moderator', 'admin'].includes(user.role)) {
+  if (novel.createdBy.toString() !== user._id.toString() || !['moderator', 'admin'].includes(user.role)) {
     return { valid: false, message: 'Không có quyền thực hiện hành động này' };
   }
   return { valid: true, message: '' };

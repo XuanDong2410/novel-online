@@ -4,7 +4,7 @@ import User from '../../models/user.model.js';
 import Novel from '../../models/novel.model.js';
 import Chapter from '../../models/chapter.model.js';
 import Rate from '../../models/rate.model.js'; // Giả định có model Rate
-import { validateInputWithSchema } from '../../utils/validator.js';
+import { validateInputWithSchema } from '../../utils/validator/inputValidator.js';
 import { MODERATION_ACTIONS } from '../../utils/moderation/constants/action.js';
 import { moderationActionHandler } from '../../utils/moderation/moderationActionHandler.js';
 
