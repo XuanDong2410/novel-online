@@ -23,6 +23,7 @@ const notificationSchema = new mongoose.Schema({
             'reply',
             'report',
             'novelUpdate',
+            'userNotice',
             'adminNotice',
             'systemNotice',
         ]
