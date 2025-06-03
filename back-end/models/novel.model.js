@@ -89,6 +89,10 @@ const novelSchema = new mongoose.Schema({
         latestChapter: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Chapter',
+        },
+        updateAt: {
+            type: Date,
+            default: null
         }
     },
     isHidden: {

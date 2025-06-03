@@ -13,14 +13,14 @@ const chapterSchema = new mongoose.Schema({
     required: true,
     maxlength: 100000, // Giới hạn độ dài nội dung chương
   },
-  contentUrl: {
-    type: String,
-    required: true, // URL của nội dung chương, có thể là file hoặc trang web
-  },
   chapterNumber: {
     type: Number,
     required: true,
     min: 1, // Số chương phải lớn hơn hoặc bằng 1
+  },
+  contentUrl: {
+    type: String,
+    required: false, // URL của nội dung chương, có thể là file hoặc trang web
   },
   audioFileUrl: {
     type: String,
@@ -41,7 +41,7 @@ const chapterSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: ['draft', 'pending', 'editing', 'warning', 'approved', 'rejected', 'retracted'],
-    default: 'pending',
+    default: 'draft',
     index: true, // Tạo chỉ mục cho trường status để tăng tốc độ truy vấn
   },
   isPublished: {
@@ -56,14 +56,22 @@ const chapterSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Report',
   }],
-  moderating: {
+  moderation: {
     isModerating: {
       type: Boolean,
       default: false,
     },
-    moderateBy: {
+    moderator: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+    },
+    lastModeratedAt: {
+      type: Date,
+      default: null
+    },
+    lastModeratedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
     }
   },
 
