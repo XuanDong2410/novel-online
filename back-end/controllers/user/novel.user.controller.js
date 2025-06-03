@@ -37,7 +37,7 @@ function sendErrorResponse(error, message, res, status) {
  * @param {string[]} allowedStatuses - Allowed publish statuses
  * @returns {Object} - { valid: boolean, message: string }
  */
-function validateNovel(novel, user, allowedStatuses = []) {
+async function validateNovel(novel, user, allowedStatuses = []) {
   if (!novel) {
     return { valid: false, message: 'Truyện không tồn tại' };
   }
@@ -241,7 +241,7 @@ export const updateNovel = async (req, res) => {
     }
     // Fetch and validate novel
     const novel = await Novel.findById(novelId);
-    const novelCheck = validateNovel(novel, req.user, ['editing', 'draft']);
+    const novelCheck = await validateNovel(novel, req.user, ['editing', 'draft']);
     if (!novelCheck.valid) {
       return sendErrorResponse(null, novelCheck.message, res, 400);
     }
@@ -364,7 +364,7 @@ export const updateNovelCover = async (req, res) => {
 
     // Fetch and validate novel
     const novel = await Novel.findById(novelId).session(session);
-    const novelCheck = validateNovel(novel, req.user, ['pending', 'editing', 'draft']);
+    const novelCheck = await validateNovel(novel, req.user, ['pending', 'editing', 'draft']);
     if (!novelCheck.valid) {
       return sendErrorResponse(null, novelCheck.message, res, 400);
     }
@@ -426,7 +426,7 @@ export const deleteNovel = async (req, res) => {
 
     // Fetch and validate novel
     const novel = await Novel.findById(novelId).session(session);
-    const novelCheck = validateNovel(novel, req.user, ['editing', 'draft', 'warning']);
+    const novelCheck = await validateNovel(novel, req.user, ['editing', 'draft', 'warning']);
     if (!novelCheck.valid) {
       return sendErrorResponse(null, novelCheck.message, res, 400);
     }
@@ -477,7 +477,7 @@ export const requestPublish = async (req, res) => {
 
     // Fetch and validate novel
     const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id }).session(session);
-    const novelCheck = validateNovel(novel, req.user, ['draft']);
+    const novelCheck = await validateNovel(novel, req.user, ['draft']);
     if (!novelCheck.valid) {
       return sendErrorResponse(null, novelCheck.message, res, 400);
     }
@@ -544,7 +544,7 @@ export const requestEdit = async (req, res) => {
     }
     // Fetch and validate novel
     const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id }).session(session);
-    const novelCheck = validateNovel(novel, req.user, ['pending', 'warning', 'approved']);
+    const novelCheck = await validateNovel(novel, req.user, ['pending', 'warning', 'approved']);
     if (!novelCheck.valid) {
       return sendErrorResponse(null, novelCheck.message, res, 400);
     }
@@ -596,7 +596,7 @@ export const cancelRequest = async (req, res) => {
 
     // Fetch and validate novel
     const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id }).session(session);
-    const novelCheck = validateNovel(novel, req.user, ['pending', 'editing']);
+    const novelCheck = await validateNovel(novel, req.user, ['pending', 'editing']);
     if (!novelCheck.valid) {
       return sendErrorResponse(null, novelCheck.message, res, 400);
     }
@@ -675,7 +675,7 @@ export const resubmitNovel = async (req, res) => {
 
     // Fetch and validate novel
     const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id }).session(session);
-    const novelCheck = validateNovel(novel, req.user, ['editing', 'warning', 'rejected']);
+    const novelCheck = await validateNovel(novel, req.user, ['editing', 'warning', 'rejected']);
     if (!novelCheck.valid) {
       return sendErrorResponse(null, novelCheck.message, res, 400);
     }
@@ -761,7 +761,7 @@ export const retractNovel = async (req, res) => {
 
     // Fetch and validate novel
     const novel = await Novel.findOne({ _id: novelId, createdBy: req.user._id }).session(session);
-    const novelCheck = validateNovel(novel, req.user, ['approved']);
+    const novelCheck = await validateNovel(novel, req.user, ['approved']);
     if (!novelCheck.valid) {
       return sendErrorResponse(null, novelCheck.message, res, 400);
     }
