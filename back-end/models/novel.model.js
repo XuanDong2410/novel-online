@@ -52,7 +52,7 @@ const novelSchema = new mongoose.Schema({
     // ✅ Thêm để quản lý và kiểm duyệt
     statusPublish: {
         type: String,
-        enum: ['draft', 'pending', 'editing', 'warning', 'approved', 'rejected', 'retracted'],
+        enum: ['draft', 'pending', 'editing', 'warning', 'approved', 'rejected'],
         default: 'draft',
         index: true // Tạo chỉ mục cho trường statusPublish để tăng tốc độ truy vấn
     },
@@ -105,11 +105,24 @@ const novelSchema = new mongoose.Schema({
         default: 0,
         min: 0 // Đảm bảo viewCount không âm
     },
-    lastModeratedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+    moderation: {
+        isModerating: {
+            type: Boolean,
+            default: false,
+        },
+        moderator: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        },
+        lastModeratedAt: {
+            type: Date,
+            default: null
+        },
+        lastModeratedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        }
     },
-
     violation: {
         aiFlag: {
             type: Boolean,
