@@ -5,7 +5,7 @@
 
 import Joi from "joi";
 import mongoose from "mongoose";
-import { sendErrorResponse } from "../utils/sendErrorResponse.js";
+import { sendErrorResponse } from "../sendErrorResponse.js";
 
 // Extend Joi with MongoDB ObjectId support
 const JoiObjectId = Joi.extend((joi) => ({
@@ -233,12 +233,12 @@ export const validateId = (id, res) => {
     return id;
 };
 
-// Example: Apply to Novel model
-import Novel from "../models/novel.model.js";
-import Chapter from "../models/chapter.model.js";
+// // Example: Apply to Novel model
+// import Novel from "../models/novel.model.js";
+// import Chapter from "../models/chapter.model.js";
 
-export const novelSchema = mongooseSchemaToJoi(Novel.schema);
-export const chapterSchema = mongooseSchemaToJoi(Chapter.schema);
+// export const novelSchema = mongooseSchemaToJoi(Novel.schema);
+// export const chapterSchema = mongooseSchemaToJoi(Chapter.schema);
 
 // Usage in controllers
 /*
