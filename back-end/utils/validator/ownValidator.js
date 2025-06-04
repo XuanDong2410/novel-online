@@ -35,3 +35,22 @@ export async function validateChapter(chapter, allowedStatuses = []) {
   }
   return { valid: true, message: '' };
 }
+/**
+ * Validates appeal existence and permissions
+ * @param {Object} appeal - Appeal document
+ * @param {Object} user - Authenticated user
+ * @param {string[]} allowedStatuses - Allowed status values
+ * @returns {Object} - { valid: boolean, message: string }
+ */
+export function validateAppeal(appeal, user, allowedStatuses = []) {
+  if (!appeal) {
+    return { valid: false, message: 'Kháng cáo không tồn tại' };
+  }
+  if (allowedStatuses.length && !allowedStatuses.includes(appeal.status)) {
+    return { valid: false, message: `Kháng cáo không ở trạng thái cho phép: ${allowedStatuses.join(', ')}` };
+  }
+  if (appeal.userId && appeal.userId.toString() !== user._id.toString()) {
+    return { valid: false, message: `${appeal._id} ${appeal.userId } ${user._id.toString()}. Bạn không có quyền thực hiện hành động này` };
+  }
+  return { valid: true, message: '' };
+}
