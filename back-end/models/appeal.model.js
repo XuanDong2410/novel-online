@@ -18,6 +18,7 @@ const appealSchema = new mongoose.Schema({
   actionType: {
     type: String,
     enum: ["reject", "warning", "flag", "hide"],
+    lowercase: true,
     required: true,
   },
   reason: {
@@ -33,6 +34,7 @@ const appealSchema = new mongoose.Schema({
   handledBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
+    required: true,
   },
   responseMessage: {
     type: String,
@@ -42,6 +44,9 @@ const appealSchema = new mongoose.Schema({
     type: Date,
   }
 }, { timestamps: true });
+
+appealSchema.index({ userId: 1, createdAt: 1 });
+appealSchema.index({ status: 1 });
 
 const Appeal = mongoose.model("Appeal", appealSchema);
 
