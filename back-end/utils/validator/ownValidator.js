@@ -26,12 +26,12 @@ export async function validateNovel(novel, user, allowedStatuses = []) {
  * @returns {Object} - { valid: boolean, message: string }
  */
 
-export async function validateChapter(chapter, user, allowedStatuses = []) {
+export async function validateChapter(chapter, allowedStatuses = []) {
   if (!chapter) {
     return { valid: false, message: 'Chương không tồn tại' };
   }
   if (allowedStatuses.length && !allowedStatuses.includes(chapter.status)) {
     return { valid: false, message: `Chương không ở trạng thái cho phép: ${allowedStatuses.join(', ')}` };
   }
-  return { valid: true, message: `${chapter.novelId}` };
+  return { valid: true, message: '' };
 }
