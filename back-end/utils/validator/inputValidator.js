@@ -30,7 +30,11 @@ export function mongooseSchemaToValidatorRules(mongooseSchema) {
     if (field.instance) rule.type = field.instance.toLowerCase();
     if (field.options.minLength) rule.minLength = field.options.minLength;
     if (field.options.maxLength) rule.maxLength = field.options.maxLength;
-    if (field.options.enum) rule.enum = field.options.enum.values;
+    if (Array.isArray(field.options.enum)) {
+      rule.enum = field.options.enum;
+    } else if (field.options.enum && Array.isArray(field.options.enum.values)) {
+      rule.enum = field.options.enum.values;
+    }
     if (field.options.min) rule.min = field.options.min;
     if (field.options.max) rule.max = field.options.max;
     if (field.options.trim) rule.trim = true;
