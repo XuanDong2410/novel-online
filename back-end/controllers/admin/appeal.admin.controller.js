@@ -6,7 +6,7 @@
 import Appeal from "../../models/appeal.model.js";
 import Novel from "../../models/novel.model.js";
 import Chapter from "../../models/chapter.model.js";
-import { validate, validateDocument, validateId } from "../../utils/validator/unifiedValidator.js";
+import { validateDocument, validateId } from "../../utils/validator/unifiedValidator.js";
 import { MODERATION_ACTIONS } from "../../utils/moderation/constants/action.js";
 import { moderationActionHandler } from "../../utils/moderation/moderationActionHandler.js";
 import { withTransaction } from "../../utils/moderation/helper/withTransaction.js";
@@ -111,7 +111,7 @@ export const approveAppeal = async (req, res) => {
 
     const appealId = validateId(req.params.appealId, res);
     if (!appealId) return;
-
+    const { note } = req.body;
     return await withTransaction(async (session) => {
       const appeal = await Appeal.findById(appealId).session(session);
       const appealCheck = await validateDocument("Appeal", appeal, {
@@ -156,8 +156,8 @@ export const approveAppeal = async (req, res) => {
         appealId: appeal._id,
         moderatorId: req.user._id,
         recipientId: appeal.userId,
-        message: `Kháng cáo cho hành động ${appeal.actionType} đã được phê duyệt bởi ${req.user.username}`,
-        logNote: `Phê duyệt kháng cáo ${appeal._id}`,
+        message: `Kháng cáo cho hành động ${appeal.actionType} đã được phê duyệt bởi ${req.user.username}. ${note}`,
+        logNote: `Phê duyệt kháng cáo ${appeal._id}: ${note}`,
       };
       const moderationResult = await moderationActionHandler(logData);
 

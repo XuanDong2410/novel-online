@@ -14,6 +14,7 @@
  * @throws {Error} Ném ra lỗi từ callback và tự động rollback giao dịch nếu có lỗi xảy ra
  * 
  */
+import mongoose from 'mongoose';
 
 export const withTransaction = async (callback) => {
   const session = await mongoose.startSession();
