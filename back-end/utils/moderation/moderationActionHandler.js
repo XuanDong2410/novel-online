@@ -82,8 +82,8 @@ export const getNotificationType = (action) => {
     [MODERATION_ACTIONS.systemFlag]: "systemNotice",
     [MODERATION_ACTIONS.systemNotice]: "systemNotice",
     [MODERATION_ACTIONS.userNotice]: "userNotice",
-    [MODERATION_ACTIONS.userReport]: "userReport",
-    [MODERATION_ACTIONS.userAppeal]: "userAppeal",
+    [MODERATION_ACTIONS.userReport]: "userNotice",
+    [MODERATION_ACTIONS.userAppeal]: "userNotice",
   };
   return notificationTypeMap[action] || "adminNotice";
 };
