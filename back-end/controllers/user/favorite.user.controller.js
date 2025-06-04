@@ -6,15 +6,17 @@ import Notification from "../../models/notification.model.js";
 export const toggleFavoriteNovel = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { novelId } = req.params;
+    const novelId = req.params.novelId;
 
     const novel = await Novel.findById(novelId);
     const user = await User.findById(userId);
 
-    if (!novel || !user) {
-      return res.status(404).json({ success: false, message: 'Novel or user not found' });
+    if (!novel) {
+      return res.status(404).json({ success: false, message: 'Novel not found' });
     }
-
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
     const isFavorited = novel.favorites.includes(userId);
 
     if (isFavorited) {
@@ -25,7 +27,7 @@ export const toggleFavoriteNovel = async (req, res) => {
       // Xoá thông báo favorite chưa đọc nếu có
       await Notification.deleteMany({
         from: userId,
-        to: novel.user,
+        to: novel.createdBy,
         type: 'favorite',
         read: false
       });
@@ -38,16 +40,16 @@ export const toggleFavoriteNovel = async (req, res) => {
       // Kiểm tra nếu chưa có thông báo cùng loại và chưa đọc thì mới tạo
       const existingNotification = await Notification.findOne({
         from: userId,
-        to: novel.user,
+        to: novel.createdBy,
         type: 'favorite',
         read: false
       });
 
-      if (!existingNotification && String(userId) !== String(novel.user)) {
+      if (!existingNotification && String(userId) !== String(novel.createdBy)) {
         const newNotification = new Notification({
           from: userId,
-          to: novel.user,
-          type: 'novel',
+          to: novel.createdBy,
+          type: 'favorite',
           message: `${user.username} đã yêu thích truyện "${novel.title}" của bạn.`,
           read: false
         });
