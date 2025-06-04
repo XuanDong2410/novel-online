@@ -18,7 +18,8 @@ const reportSchema = new mongoose.Schema({
   },
   reason: {   // Lý do báo cáo (bắt buộc)
     type: String,
-    required: true
+    required: true,
+    maxLength: 500
   },
   status: {  // Trạng thái xử lý báo cáo
     type: String,
@@ -33,9 +34,14 @@ const reportSchema = new mongoose.Schema({
     type: Date
   },
   note: { // Ghi chú khi xử lý
-    type: String
+    type: String,
+    maxLength: 1000
   }
 }, { timestamps: true });
+
+reportSchema.index({ reporter: 1 });
+reportSchema.index({ targetType: 1, targetId: 1 });
+reportSchema.index({ status: 1 });
 
 const Report = mongoose.model('Report', reportSchema);
 export default Report;
