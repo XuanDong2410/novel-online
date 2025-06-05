@@ -30,7 +30,84 @@ const syncNovelStatus = async (novelId, session) => {
   novel.statusPublish = allApproved ? "approved" : "editing";
   await novel.save({ session });
 };
+const handleModerationAction = async (
+  req,
+  res,
+  action,
+  status,
+  message,
+  allowedStatuses = null,
+  additionalActions = null
+) => {
+  try {
 
+    const chapterId = validateId(req.params.chapterId, res);
+    if (!chapterId) return;
+    if (res.headersSent) return;
+
+    return await withTransaction(async (session) => {
+      const chapter = await Chapter.findById(chapterId).session(session);
+      if (!chapter) {
+        throw new Error('Không tìm thấy chương');
+      }
+
+      const novel = await Novel.findById(chapter.novelId).session(session);
+      if (!novel) {
+        throw new Error('Không tìm thấy truyện tương ứng');
+      }
+
+
+      chapter.status = status;
+      await chapter.save({ session });
+
+      await updateRelatedReports('Chapter', chapter._id, 'reviewed', `Chương ${status}: ${req.body.note}`, session);
+
+      await syncNovelStatus(novel._id, session);
+
+      const logData = {
+        action,
+        novelId: novel._id,
+        chapterId: chapter._id,
+        moderatorId: req.user._id,
+        recipientId: novel.createdBy,
+        message: `Chương ${chapter.chapterNumber}.${chapter.title} ${message}: ${req.body.note}`,
+        logNote: `${action} chương ${chapter.chapterNumber} của truyện ${novel.title}`,
+        details: { reason: req.body.note },
+      };
+
+      const result = await moderationActionHandler(logData, session);
+      if (!result.success) throw new Error(result.message);
+
+      if (additionalActions) {
+        await additionalActions(chapter, novel, session);
+      }
+
+      await session.commitTransaction();
+      res.status(200).json({ success: true, message: `Đã ${message} chương` });
+    });
+  } catch (error) {
+    return sendErrorResponse(error, `Lỗi khi ${message} chương`, res, 500);
+  }
+};
+export const approveChapter = async (req, res) => {
+  handleModerationAction(req, res, MODERATION_ACTIONS.approve, 'approved', 'phê duyệt', ['pending'], async (chapter, novel, session) => {
+    chapter.isPublished = true;
+    chapter.publishDate = new Date();
+    await chapter.save({ session });
+  });
+};
+
+export const rejectChapter = async (req, res) => {
+  handleModerationAction(req, res, MODERATION_ACTIONS.reject, 'rejected', 'từ chối', ['pending']);
+};
+
+export const requestEditChapter = async (req, res) => {
+  handleModerationAction(req, res, MODERATION_ACTIONS.requestEdit, 'editing', 'yêu cầu chỉnh sửa');
+};
+
+export const warnChapter = async (req, res) => {
+  handleModerationAction(req, res, MODERATION_ACTIONS.warning, 'warning', 'cảnh cáo');
+};
 // Helper to increment violation count
 const incrementViolation = async (chapter, user, session) => {
   chapter.violation.count = (chapter.violation.count || 0) + 1;
@@ -39,21 +116,13 @@ const incrementViolation = async (chapter, user, session) => {
   await user.save({ session });
 };
 
-// Middleware to check Content-Type
-const checkContentType = (req, res, next) => {
-  if (!req.is("application/json")) {
-    return sendErrorResponse(null, "Content-Type phải là application/json", res, 400);
-  }
-  next();
-};
-
 /**
  * Get chapter details for moderation
  * @async
  */
 export const getChapterDetails = async (req, res) => {
   try {
-    const chapterId = validateId(req.params.chapterId, res);
+    const chapterId = req.params.chapterId;
     if (!chapterId) return;
 
     const [chapter, novel] = await Promise.all([
@@ -79,235 +148,235 @@ export const getChapterDetails = async (req, res) => {
   }
 };
 
-/**
- * Approve a single chapter
- * @async
- */
-export const approveChapter = async (req, res) => {
-  try {
-    const chapterId = validateId(req.params.chapterId, res);
-    if (!chapterId) return;
+// /**
+//  * Approve a single chapter
+//  * @async
+//  */
+// export const approveChapter = async (req, res) => {
+//   try {
+//     const chapterId = validateId(req.params.chapterId, res);
+//     if (!chapterId) return;
 
-    return await withTransaction(async (session) => {
-      const [chapter, novel] = await Promise.all([
-        Chapter.findById(chapterId).session(session),
-        Novel.findById(chapter?.novelId).session(session),
-      ]);
+//     return await withTransaction(async (session) => {
+//       const [chapter, novel] = await Promise.all([
+//         Chapter.findById(chapterId).session(session),
+//         Novel.findById(chapter?.novelId).session(session),
+//       ]);
 
-      const chapterCheck = await validateDocument("Chapter", chapter, {
-        session,
-        allowedStatuses: ["pending"],
-      });
-      if (!chapterCheck.valid) {
-        return sendErrorResponse(null, chapterCheck.message, res, 400);
-      }
-      const novelCheck = await validateDocument("Novel", novel, {
-        session,
-        allowedStatuses: ["approved"],
-      });
-      if (!novelCheck.valid) {
-        return sendErrorResponse(null, novelCheck.message, res, 400);
-      }
+//       const chapterCheck = await validateDocument("Chapter", chapter, {
+//         session,
+//         allowedStatuses: ["pending"],
+//       });
+//       if (!chapterCheck.valid) {
+//         return sendErrorResponse(null, chapterCheck.message, res, 400);
+//       }
+//       const novelCheck = await validateDocument("Novel", novel, {
+//         session,
+//         allowedStatuses: ["approved"],
+//       });
+//       if (!novelCheck.valid) {
+//         return sendErrorResponse(null, novelCheck.message, res, 400);
+//       }
 
-      chapter.status = "approved";
-      chapter.isPublished = true;
-      chapter.publishDate = new Date();
-      await chapter.save({ session });
+//       chapter.status = "approved";
+//       chapter.isPublished = true;
+//       chapter.publishDate = new Date();
+//       await chapter.save({ session });
 
-      await updateRelatedReports("Chapter", chapter._id, "reviewed", "Chương đã được phê duyệt", session);
+//       await updateRelatedReports("Chapter", chapter._id, "reviewed", "Chương đã được phê duyệt", session);
 
-      await syncNovelStatus(novel._id, session);
+//       await syncNovelStatus(novel._id, session);
 
-      if (!req.user?._id) {
-        return sendErrorResponse(null, "Không tìm thấy thông tin người dùng", res, 401);
-      }
+//       if (!req.user?._id) {
+//         return sendErrorResponse(null, "Không tìm thấy thông tin người dùng", res, 401);
+//       }
 
-      const result = await moderationActionHandler({
-        action: MODERATION_ACTIONS.approve,
-        novelId: novel._id,
-        chapterId: chapter._id,
-        moderatorId: req.user._id,
-        recipientId: novel.createdBy,
-        message: `Chương ${chapter.chapterNumber}.${chapter.title} của truyện ${novel.title} đã được phê duyệt`,
-        logNote: `Phê duyệt chương ${chapter.chapterNumber} của truyện ${novel.title}`,
-      });
+//       const result = await moderationActionHandler({
+//         action: MODERATION_ACTIONS.approve,
+//         novelId: novel._id,
+//         chapterId: chapter._id,
+//         moderatorId: req.user._id,
+//         recipientId: novel.createdBy,
+//         message: `Chương ${chapter.chapterNumber}.${chapter.title} của truyện ${novel.title} đã được phê duyệt`,
+//         logNote: `Phê duyệt chương ${chapter.chapterNumber} của truyện ${novel.title}`,
+//       });
 
-      if (!result.success) throw new Error(result.message);
+//       if (!result.success) throw new Error(result.message);
 
-      await session.commitTransaction();
-      res.status(200).json({ success: true, message: "Chương đã được phê duyệt" });
-    });
-  } catch (error) {
-    return sendErrorResponse(error, "Lỗi khi phê duyệt chương", res, 500);
-  }
-};
+//       await session.commitTransaction();
+//       res.status(200).json({ success: true, message: "Chương đã được phê duyệt" });
+//     });
+//   } catch (error) {
+//     return sendErrorResponse(error, "Lỗi khi phê duyệt chương", res, 500);
+//   }
+// };
 
-/**
- * Reject a single chapter
- * @async
- */
-export const rejectChapter = async (req, res) => {
-  try {
-    const chapterId = validateId(req.params.chapterId, res);
-    if (!chapterId) return;
+// /**
+//  * Reject a single chapter
+//  * @async
+//  */
+// export const rejectChapter = async (req, res) => {
+//   try {
+//     const chapterId = validateId(req.params.chapterId, res);
+//     if (!chapterId) return;
 
-    return await withTransaction(async (session) => {
-      const [chapter, novel] = await Promise.all([
-        Chapter.findById(chapterId).session(session),
-        Novel.findById(chapter?.novelId).session(session),
-      ]);
+//     return await withTransaction(async (session) => {
+//       const [chapter, novel] = await Promise.all([
+//         Chapter.findById(chapterId).session(session),
+//         Novel.findById(chapter?.novelId).session(session),
+//       ]);
 
-      const chapterCheck = await validateDocument("Chapter", chapter, {
-        session,
-        allowedStatuses: ["pending"],
-      });
-      if (!chapterCheck.valid) {
-        return sendErrorResponse(null, chapterCheck.message, res, 400);
-      }
-      const novelCheck = await validateDocument("Novel", novel, { session });
-      if (!novelCheck.valid) {
-        return sendErrorResponse(null, novelCheck.message, res, 400);
-      }
+//       const chapterCheck = await validateDocument("Chapter", chapter, {
+//         session,
+//         allowedStatuses: ["pending"],
+//       });
+//       if (!chapterCheck.valid) {
+//         return sendErrorResponse(null, chapterCheck.message, res, 400);
+//       }
+//       const novelCheck = await validateDocument("Novel", novel, { session });
+//       if (!novelCheck.valid) {
+//         return sendErrorResponse(null, novelCheck.message, res, 400);
+//       }
 
-      chapter.status = "rejected";
-      await chapter.save({ session });
+//       chapter.status = "rejected";
+//       await chapter.save({ session });
 
-      await updateRelatedReports("Chapter", chapter._id, "reviewed", `Chương bị từ chối: ${req.body.note}`, session);
+//       await updateRelatedReports("Chapter", chapter._id, "reviewed", `Chương bị từ chối: ${req.body.note}`, session);
 
-      await syncNovelStatus(novel._id, session);
+//       await syncNovelStatus(novel._id, session);
 
-      if (!req.user?._id) {
-        return sendErrorResponse(null, "Không tìm thấy thông tin người dùng", res, 401);
-      }
+//       if (!req.user?._id) {
+//         return sendErrorResponse(null, "Không tìm thấy thông tin người dùng", res, 401);
+//       }
 
-      const result = await moderationActionHandler({
-        action: MODERATION_ACTIONS.reject,
-        novelId: novel._id,
-        chapterId: chapter._id,
-        moderatorId: req.user._id,
-        recipientId: novel.createdBy,
-        message: `Chương ${chapter.chapterNumber}.${chapter.title} bị từ chối: ${req.body.note}`,
-        logNote: `Từ chối chương ${chapter.chapterNumber} của truyện ${novel.title}`,
-        details: { reason: req.body.note },
-      });
+//       const result = await moderationActionHandler({
+//         action: MODERATION_ACTIONS.reject,
+//         novelId: novel._id,
+//         chapterId: chapter._id,
+//         moderatorId: req.user._id,
+//         recipientId: novel.createdBy,
+//         message: `Chương ${chapter.chapterNumber}.${chapter.title} bị từ chối: ${req.body.note}`,
+//         logNote: `Từ chối chương ${chapter.chapterNumber} của truyện ${novel.title}`,
+//         details: { reason: req.body.note },
+//       });
 
-      if (!result.success) throw new Error(result.message);
+//       if (!result.success) throw new Error(result.message);
 
-      await session.commitTransaction();
-      res.status(200).json({ success: true, message: "Chương đã bị từ chối" });
-    });
-  } catch (error) {
-    return sendErrorResponse(error, "Lỗi khi từ chối chương", res, 500);
-  }
-};
+//       await session.commitTransaction();
+//       res.status(200).json({ success: true, message: "Chương đã bị từ chối" });
+//     });
+//   } catch (error) {
+//     return sendErrorResponse(error, "Lỗi khi từ chối chương", res, 500);
+//   }
+// };
 
-/**
- * Request edits for a specific chapter
- * @async
- */
-export const requestEditChapter = async (req, res) => {
-  try {
-    const chapterId = validateId(req.params.chapterId, res);
-    if (!chapterId) return;
+// /**
+//  * Request edits for a specific chapter
+//  * @async
+//  */
+// export const requestEditChapter = async (req, res) => {
+//   try {
+//     const chapterId = validateId(req.params.chapterId, res);
+//     if (!chapterId) return;
 
-    return await withTransaction(async (session) => {
-      const [chapter, novel] = await Promise.all([
-        Chapter.findById(chapterId).session(session),
-        Novel.findById(chapter?.novelId).session(session),
-      ]);
+//     return await withTransaction(async (session) => {
+//       const [chapter, novel] = await Promise.all([
+//         Chapter.findById(chapterId).session(session),
+//         Novel.findById(chapter?.novelId).session(session),
+//       ]);
 
-      const chapterCheck = await validateDocument("Chapter", chapter, { session });
-      if (!chapterCheck.valid) {
-        return sendErrorResponse(null, chapterCheck.message, res, 400);
-      }
-      const novelCheck = await validateDocument("Novel", novel, { session });
-      if (!novelCheck.valid) {
-        return sendErrorResponse(null, novelCheck.message, res, 400);
-      }
+//       const chapterCheck = await validateDocument("Chapter", chapter, { session });
+//       if (!chapterCheck.valid) {
+//         return sendErrorResponse(null, chapterCheck.message, res, 400);
+//       }
+//       const novelCheck = await validateDocument("Novel", novel, { session });
+//       if (!novelCheck.valid) {
+//         return sendErrorResponse(null, novelCheck.message, res, 400);
+//       }
 
-      chapter.status = "editing";
-      await chapter.save({ session });
+//       chapter.status = "editing";
+//       await chapter.save({ session });
 
-      await syncNovelStatus(novel._id, session);
+//       await syncNovelStatus(novel._id, session);
 
-      if (!req.user?._id) {
-        return sendErrorResponse(null, "Không tìm thấy thông tin người dùng", res, 401);
-      }
+//       if (!req.user?._id) {
+//         return sendErrorResponse(null, "Không tìm thấy thông tin người dùng", res, 401);
+//       }
 
-      const result = await moderationActionHandler({
-        action: MODERATION_ACTIONS.requestEdit,
-        novelId: novel._id,
-        chapterId: chapter._id,
-        moderatorId: req.user._id,
-        recipientId: novel.createdBy,
-        message: `Chương ${chapter.chapterNumber}.${chapter.title} cần chỉnh sửa: ${req.body.note}`,
-        logNote: `Yêu cầu chỉnh sửa chương ${chapter.chapterNumber} của truyện ${novel.title}`,
-        details: { reason: req.body.note },
-      });
+//       const result = await moderationActionHandler({
+//         action: MODERATION_ACTIONS.requestEdit,
+//         novelId: novel._id,
+//         chapterId: chapter._id,
+//         moderatorId: req.user._id,
+//         recipientId: novel.createdBy,
+//         message: `Chương ${chapter.chapterNumber}.${chapter.title} cần chỉnh sửa: ${req.body.note}`,
+//         logNote: `Yêu cầu chỉnh sửa chương ${chapter.chapterNumber} của truyện ${novel.title}`,
+//         details: { reason: req.body.note },
+//       });
 
-      if (!result.success) throw new Error(result.message);
+//       if (!result.success) throw new Error(result.message);
 
-      await session.commitTransaction();
-      res.status(200).json({ success: true, message: "Đã gửi yêu cầu chỉnh sửa chương" });
-    });
-  } catch (error) {
-    return sendErrorResponse(error, "Lỗi khi yêu cầu chỉnh sửa chương", res, 500);
-  }
-};
+//       await session.commitTransaction();
+//       res.status(200).json({ success: true, message: "Đã gửi yêu cầu chỉnh sửa chương" });
+//     });
+//   } catch (error) {
+//     return sendErrorResponse(error, "Lỗi khi yêu cầu chỉnh sửa chương", res, 500);
+//   }
+// };
 
-/**
- * Issue a warning for a chapter
- * @async
- */
-export const warnChapter = async (req, res) => {
-  try {
-    const chapterId = validateId(req.params.chapterId, res);
-    if (!chapterId) return;
+// /**
+//  * Issue a warning for a chapter
+//  * @async
+//  */
+// export const warnChapter = async (req, res) => {
+//   try {
+//     const chapterId = validateId(req.params.chapterId, res);
+//     if (!chapterId) return;
 
-    return await withTransaction(async (session) => {
-      const [chapter, novel] = await Promise.all([
-        Chapter.findById(chapterId).session(session),
-        Novel.findById(chapter?.novelId).session(session),
-      ]);
+//     return await withTransaction(async (session) => {
+//       const [chapter, novel] = await Promise.all([
+//         Chapter.findById(chapterId).session(session),
+//         Novel.findById(chapter?.novelId).session(session),
+//       ]);
 
-      const chapterCheck = await validateDocument("Chapter", chapter, { session });
-      if (!chapterCheck.valid) {
-        return sendErrorResponse(null, chapterCheck.message, res, 400);
-      }
-      const novelCheck = await validateDocument("Novel", novel, { session });
-      if (!novelCheck.valid) {
-        return sendErrorResponse(null, novelCheck.message, res, 400);
-      }
+//       const chapterCheck = await validateDocument("Chapter", chapter, { session });
+//       if (!chapterCheck.valid) {
+//         return sendErrorResponse(null, chapterCheck.message, res, 400);
+//       }
+//       const novelCheck = await validateDocument("Novel", novel, { session });
+//       if (!novelCheck.valid) {
+//         return sendErrorResponse(null, novelCheck.message, res, 400);
+//       }
 
-      chapter.status = "warning";
-      await chapter.save({ session });
+//       chapter.status = "warning";
+//       await chapter.save({ session });
 
-      await syncNovelStatus(novel._id, session);
+//       await syncNovelStatus(novel._id, session);
 
-      if (!req.user?._id) {
-        return sendErrorResponse(null, "Không tìm thấy thông tin người dùng", res, 401);
-      }
+//       if (!req.user?._id) {
+//         return sendErrorResponse(null, "Không tìm thấy thông tin người dùng", res, 401);
+//       }
 
-      const result = await moderationActionHandler({
-        action: MODERATION_ACTIONS.warning,
-        novelId: novel._id,
-        chapterId: chapter._id,
-        moderatorId: req.user._id,
-        recipientId: novel.createdBy,
-        message: `Chương ${chapter.chapterNumber}.${chapter.title} bị cảnh cáo: ${req.body.note}`,
-        logNote: `Cảnh cáo chương ${chapter.chapterNumber} của truyện ${novel.title}`,
-        details: { reason: req.body.note },
-      });
+//       const result = await moderationActionHandler({
+//         action: MODERATION_ACTIONS.warning,
+//         novelId: novel._id,
+//         chapterId: chapter._id,
+//         moderatorId: req.user._id,
+//         recipientId: novel.createdBy,
+//         message: `Chương ${chapter.chapterNumber}.${chapter.title} bị cảnh cáo: ${req.body.note}`,
+//         logNote: `Cảnh cáo chương ${chapter.chapterNumber} của truyện ${novel.title}`,
+//         details: { reason: req.body.note },
+//       });
 
-      if (!result.success) throw new Error(result.message);
+//       if (!result.success) throw new Error(result.message);
 
-      await session.commitTransaction();
-      res.status(200).json({ success: true, message: "Đã cảnh cáo chương" });
-    });
-  } catch (error) {
-    return sendErrorResponse(error, "Lỗi khi cảnh cáo chương", res, 500);
-  }
-};
+//       await session.commitTransaction();
+//       res.status(200).json({ success: true, message: "Đã cảnh cáo chương" });
+//     });
+//   } catch (error) {
+//     return sendErrorResponse(error, "Lỗi khi cảnh cáo chương", res, 500);
+//   }
+// };
 
 /**
  * Flag a chapter for violation
