@@ -121,10 +121,25 @@ const userSchema = new mongoose.Schema({
     totalUploaded: { type: Number, default: 0, min: 0 },
     totalReports: { type: Number, default: 0, min: 0 },
     totalAppeals: { type: Number, default: 0, min: 0 },
-    totalLikesReceived: { type: Number, default: 0, min: 0 },
+    totalFavoriteNovels: { type: Number, default: 0, min: 0 },
   }
 
 }, { timestamps: true });
+userSchema.pre("save", function (next) {
+  if (this.isModified("uploadedNovels")) {
+    this.statistics.totalUploaded = this.uploadedNovels.length;
+  }
+  if (this.isModified("reportsMade")) {
+    this.statistics.totalReports = this.reportsMade.length;
+  }
+  if (this.isModified("appeals")) {
+    this.statistics.totalAppeals = this.appeals.length;
+  }
+  if (this.isModified("favoriteNovels")) {
+    this.statistics.totalFavoriteNovels = this.favoriteNovels.length;
+  }
+  next();
+});
 
 // Middleware post-save để kiểm tra violationCount
 userSchema.post("save", async function (doc, next) {

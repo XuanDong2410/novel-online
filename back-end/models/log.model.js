@@ -5,12 +5,7 @@ const moderationLogSchema = new mongoose.Schema({
   novelId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Novel',
-    required: true,
     index: true,
-    validate: {
-      validator: (v) => mongoose.isValidObjectId(v),
-      message: "novelId phải là ObjectId hợp lệ",
-    },
   },
   chapterId: {
     type: mongoose.Schema.Types.ObjectId,

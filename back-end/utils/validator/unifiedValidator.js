@@ -76,7 +76,7 @@ const mongooseSchemaToJoi = (mongooseSchema) => {
 };
 
 // Standard schemas
-const schemas = {
+export const schemas = {
   signup: Joi.object({
     email: Joi.string()
       .email({ tlds: { allow: false } })
@@ -185,6 +185,16 @@ const schemas = {
   appealResponse: Joi.object({
     responseMessage: Joi.string().max(2000).optional().messages({
       "string.max": "Thông điệp phản hồi không được vượt quá 2000 ký tự",
+    }),
+  }),
+  getUsersQuery: Joi.object({
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(100).default(20),
+  }),
+  updateUserRole: Joi.object({
+    role: Joi.string().valid('user', 'moderator', 'admin').required().messages({
+      'any.only': 'Vai trò không hợp lệ',
+      'any.required': 'Vai trò là bắt buộc',
     }),
   }),
 };
