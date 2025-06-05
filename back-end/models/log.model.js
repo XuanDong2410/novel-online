@@ -7,15 +7,27 @@ const moderationLogSchema = new mongoose.Schema({
     ref: 'Novel',
     required: true,
     index: true,
+    validate: {
+      validator: (v) => mongoose.isValidObjectId(v),
+      message: "novelId phải là ObjectId hợp lệ",
+    },
   },
   chapterId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Chapter',
     index: true,
+    validate: {
+      validator: (v) => v == null || mongoose.isValidObjectId(v),
+      message: "chapterId phải là ObjectId hợp lệ hoặc null",
+    },
   },
   moderator: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
+    validate: {
+      validator: (v) => v == null || mongoose.isValidObjectId(v),
+      message: "moderator phải là ObjectId hợp lệ hoặc null",
+    },
   },
   action: {
     type: String,
@@ -29,7 +41,7 @@ const moderationLogSchema = new mongoose.Schema({
   details: {
     type: mongoose.Schema.Types.Mixed, // Hỗ trợ lưu object
     default: null, // Chi tiết vi phạm, ví dụ: từ aiViolationDetails
-    maxLength: 3000,
+    maxLength: 5000,
   },
   isSystemAction: {
     type: Boolean,

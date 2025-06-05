@@ -3,9 +3,8 @@
  * @module LogAdminController
  */
 
-import mongoose from "mongoose";
 import ModerationLog from "../../models/log.model.js";
-import { validateDocument, validateId } from "../../utils/validator/unifiedValidator.js";
+import { validateId } from "../../utils/validator/unifiedValidator.js";
 import { MODERATION_ACTIONS } from "../../utils/moderation/constants/action.js";
 import { moderationActionHandler } from "../../utils/moderation/moderationActionHandler.js";
 import { withTransaction } from "../../utils/moderation/helper/withTransaction.js";
@@ -71,9 +70,8 @@ export const getModerationLogById = async (req, res) => {
       .populate("moderator", "username")
       .lean();
 
-    const logCheck = await validateDocument("ModerationLog", log);
-    if (!logCheck.valid) {
-      return sendErrorResponse(null, logCheck.message, res, 404);
+    if (!log) {
+      return sendErrorResponse(null, "Nhật ký kiểm duyệt không tồn tại", res, 404);
     }
 
     return res.status(200).json({
@@ -102,26 +100,23 @@ export const deleteModerationLogById = async (req, res) => {
 
     return await withTransaction(async (session) => {
       const log = await ModerationLog.findById(logId).session(session);
-      const logCheck = await validateDocument("ModerationLog", log, { session });
-      if (!logCheck.valid) {
-        return sendErrorResponse(null, logCheck.message, res, 404);
-      }
 
       await ModerationLog.findByIdAndDelete(logId, { session });
 
-      const logData = {
-        action: MODERATION_ACTIONS.delete,
-        novelId: log.novelId,
-        chapterId: log.chapterId,
-        moderatorId: req.user._id,
-        recipientId: log.moderator,
-        message: `Nhật ký kiểm duyệt cho hành động ${log.action} đã bị xóa bởi ${req.user.username}`,
-        logNote: `Xóa nhật ký kiểm duyệt ${logId}`,
-      };
-      const moderationResult = await moderationActionHandler(logData);
+      if (!log.isSystemAction) {
+        const logData = {
+          action: MODERATION_ACTIONS.notice,
+          novelId: log.novelId,
+          chapterId: log.chapterId,
+          moderatorId: req.user._id,
+          recipientId: log.moderator,
+          message: `Nhật ký kiểm duyệt cho hành động ${log.action} đã bị xóa bởi ${req.user.username}`,
+          logNote: `Xóa nhật ký kiểm duyệt ${logId}`,
+        };
+        const moderationResult = await moderationActionHandler(logData);
 
-      if (!moderationResult.success) throw new Error(moderationResult.message);
-
+        if (!moderationResult.success) throw new Error(moderationResult.message);
+      }
       await session.commitTransaction();
       return res.status(200).json({
         success: true,
@@ -146,22 +141,12 @@ export const deleteAllModerationLogs = async (req, res) => {
 
     return await withTransaction(async (session) => {
       const result = await ModerationLog.deleteMany({}, { session });
-
-      const logData = {
-        action: MODERATION_ACTIONS.delete,
-        moderatorId: req.user._id,
-        message: `Tất cả nhật ký kiểm duyệt đã bị xóa bởi ${req.user.username}`,
-        logNote: `Xóa toàn bộ nhật ký kiểm duyệt (${result.deletedCount} bản ghi)`,
-      };
-      const moderationResult = await moderationActionHandler(logData);
-
-      if (!moderationResult.success) throw new Error(moderationResult.message);
-
+      
       await session.commitTransaction();
       return res.status(200).json({
         success: true,
         message: `Đã xóa ${result.deletedCount} nhật ký kiểm duyệt`,
-        data: { deletedCount: result.deletedCount },
+        data: { deletedCount: result.deletedCount},
       });
     });
   } catch (error) {

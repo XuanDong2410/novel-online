@@ -47,7 +47,15 @@ const mongooseSchemaToJoi = (mongooseSchema) => {
         rule = Joi.date();
         break;
       case "objectid":
-        rule = JoiObjectId.objectId();
+        rule = Joi.alternatives().try(
+          JoiObjectId.objectId(),
+          Joi.object().keys({
+            _id: JoiObjectId.objectId().required(),
+            title: Joi.string().optional(),
+            username: Joi.string().optional(),
+          })
+        );
+        if (!field.isRequired) rule = rule.allow(null);
         break;
       case "array":
         if (field.schema) {
