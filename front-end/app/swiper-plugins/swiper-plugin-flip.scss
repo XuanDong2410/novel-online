@@ -1,0 +1,5 @@
+.swiper--flip .swiper-slide {
+	//@apply absolute top-0 left-0;
+	transform-origin: left center;
+	perspective: 9999px
+}
