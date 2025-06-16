@@ -10,7 +10,7 @@ export function createApp() {
     app.use(cors({
         origin: 'http://localhost:3000', // Cho phép frontend từ localhost:3000
         credentials: true, // Cho phép gửi cookie
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Các phương thức HTTP được phép
+        methods: ['GET', 'POST', 'PUT', ,'PATCH', 'DELETE', 'OPTIONS'], // Các phương thức HTTP được phép
         allowedHeaders: ['Content-Type', 'Authorization'] // Các header được phép
     }))
     app.use(express.json())
