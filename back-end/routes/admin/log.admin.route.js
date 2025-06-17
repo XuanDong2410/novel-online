@@ -10,8 +10,8 @@ import {
 const router = express.Router();
 
 router.get('/', getAllModerationLogs);
+router.get('/stats', getModerationLogStats);
 router.get('/:logId', getModerationLogById);
 router.delete('/:logId', deleteModerationLogById);
 router.delete('/', deleteAllModerationLogs);
-router.get('/stats', getModerationLogStats);
 export default router;
