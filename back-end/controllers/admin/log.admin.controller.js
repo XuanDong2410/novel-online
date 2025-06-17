@@ -2,14 +2,14 @@
  * Controller for handling moderation log-related operations
  * @module LogAdminController
  */
-
+import mongoose from "mongoose";
 import ModerationLog from "../../models/log.model.js";
 import { validateId } from "../../utils/validator/unifiedValidator.js";
 import { MODERATION_ACTIONS } from "../../utils/moderation/constants/action.js";
 import { moderationActionHandler } from "../../utils/moderation/moderationActionHandler.js";
 import { withTransaction } from "../../utils/moderation/helper/withTransaction.js";
 import { sendErrorResponse } from "../../utils/sendErrorResponse.js";
-
+import { startOfDay, endOfDay } from 'date-fns'; // Sử dụng date-fns để xử lý ngày
 /**
  * Validates admin/moderator permissions
  * @param {Object} user - Authenticated user
@@ -157,38 +157,105 @@ export const deleteAllModerationLogs = async (req, res) => {
 /**
  * Retrieves statistics for moderation logs
  * @async
- */
+ */ // Đường dẫn tới model
+
 export const getModerationLogStats = async (req, res) => {
   try {
-    const permissionCheck = validateAdminPermissions(req.user);
-    if (!permissionCheck.valid) {
-      return sendErrorResponse(null, permissionCheck.message, res, 403);
-    }
+    const todayStart = startOfDay(new Date());
+    const todayEnd = endOfDay(new Date());
+    
+    const [actionStats, moderatorStats, totalLogs, todayLogs] = await Promise.all([
+      ModerationLog.aggregate([
+        {
+          $group: {
+            _id: "$action",
+            count: { $sum: 1 },
+            systemActions: { $sum: { $cond: ["$isSystemAction", 1, 0] } },
+            manualActions: { $sum: { $cond: ["$isSystemAction", 0, 1] } },
+          },
+        },
+        {
+          $project: {
+            action: "$_id",
+            count: 1,
+            systemActions: 1,
+            manualActions: 1,
+            _id: 0,
+          },
+        },
+      ]),
 
-    const stats = await ModerationLog.aggregate([
-      {
-        $group: {
-          _id: "$action",
-          count: { $sum: 1 },
-          systemActions: { $sum: { $cond: ["$isSystemAction", 1, 0] } },
-          manualActions: { $sum: { $cond: ["$isSystemAction", 0, 1] } },
+      ModerationLog.aggregate([
+        {
+          $match: {
+            isSystemAction: false,
+            moderator: { $ne: null, $type: "objectId" },
+          },
         },
-      },
-      {
-        $project: {
-          action: "$_id",
-          count: 1,
-          systemActions: 1,
-          manualActions: 1,
-          _id: 0,
+        {
+          $group: {
+            _id: "$moderator",
+            count: { $sum: 1 },
+          },
         },
-      },
+        {
+          $lookup: {
+            from: mongoose.model('User').collection.name, // Đảm bảo tên collection đúng
+            localField: '_id',
+            foreignField: '_id',
+            as: 'moderator',
+          },
+        },
+        {
+          $unwind: {
+            path: '$moderator',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $match: {
+            'moderator._id': { $exists: true },
+          },
+        },
+        {
+          $project: {
+            moderator: {
+              _id: '$moderator._id',
+              username: '$moderator.username',
+            },
+            count: 1,
+            _id: 0,
+          },
+        },
+        {
+          $sort: { count: -1 },
+        },
+        {
+          $limit: 5,
+        },
+      ]),
+
+      ModerationLog.countDocuments({}),
+      ModerationLog.countDocuments({
+        createdAt: { $gte: todayStart, $lte: todayEnd },
+      }),
     ]);
 
-    const total = stats.reduce((acc, curr) => acc + curr.count, 0);
+    const systemActions = actionStats.reduce((acc, curr) => acc + curr.systemActions, 0);
+    const manualActions = actionStats.reduce((acc, curr) => acc + curr.manualActions, 0);
+
+    const actionBreakdown = actionStats.reduce((acc, curr) => {
+      acc[curr.action] = curr.count;
+      return acc;
+    }, {});
+
     const result = {
-      total,
-      byAction: stats,
+      totalLogs,
+      todayLogs,
+      systemActions,
+      manualActions,
+      actionBreakdown,
+      moderatorStats: moderatorStats.filter(stat => stat.moderator),
     };
 
     return res.status(200).json({
@@ -197,7 +264,11 @@ export const getModerationLogStats = async (req, res) => {
       data: result,
     });
   } catch (error) {
-    return sendErrorResponse(error, "Lỗi khi lấy thống kê nhật ký kiểm duyệt", res, 500);
+    console.error('Error in getModerationLogStats:', error.message, error.stack);
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi khi lấy thống kê nhật ký kiểm duyệt",
+      error: error.message,
+    });
   }
 };
-
