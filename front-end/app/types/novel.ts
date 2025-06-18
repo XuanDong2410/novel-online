@@ -1,4 +1,7 @@
-import type { AvatarProps } from '@nuxt/ui'
+// import type { AvatarProps } from '@nuxt/ui'
+import type { User } from '@/types/user'
+import type { Chapter } from '@/types/chapter'
+import type { statusPublish } from '@/types'
 
 export interface NovelAttribute {
   _id: string
@@ -15,8 +18,8 @@ export interface Novel {
   title: string
   author: string
   description: string
-  createdBy: string // User ID
-  statusPublish: 'draft' | 'pending' | 'editing' | 'warning' | 'approved' | 'rejected'
+  createdBy: User // User ID
+  statusPublish: statusPublish
   status: 'ongoing' | 'completed' | 'hiatus'
   attributes: NovelAttribute[] // NovelAttribute IDs
   favorites: string[] // User IDs
@@ -26,11 +29,7 @@ export interface Novel {
     count: number
     averageRating?: number
   }
-  chapters: {
-    count: number
-    latestChapter: string // Chapter ID
-    updateAt: Date | null
-  }
+  chapters: Chapter[]
   isHidden: boolean
   hiddenBy?: string // User ID
   viewCount: number
@@ -47,7 +46,7 @@ export interface Novel {
     details: string
     count: number
   }
-  coverImage?: AvatarProps
+  coverImage?: string
   tags: string[]
   createdAt: Date
   updatedAt: Date

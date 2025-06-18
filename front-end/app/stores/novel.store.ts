@@ -28,6 +28,33 @@ export const useNovelsStore = defineStore('novels', () => {
     }
     return roleEndpoints[role] || roleEndpoints.user
   }
+  // ROUTE FOR NOVELS FOR ALL ROLES
+  const getNovelById = async (id: string) => {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await $fetch<ApiResponse<Novel>>(
+        `http://localhost:5000/api/v1/novel/${id}`,
+        {
+          method: 'GET',
+          credentials: 'include',
+          timeout: 5000
+        }
+      )
+      currentNovel.value = response.data
+    } catch (err: unknown) {
+      const errorMessage
+        = err instanceof Error
+          ? err.message.includes('CORS')
+            ? 'Lỗi CORS: Không thể tải thông tin truyện.'
+            : err.message
+          : 'Có lỗi xảy ra khi tải thông tin truyện'
+      error.value = errorMessage
+      console.error('Error fetching novels:', err)
+    } finally {
+      loading.value = false
+    }
+  }
 
   // Actions
   const fetchNovels = async (query: NovelQuery = {}) => {
@@ -200,7 +227,37 @@ export const useNovelsStore = defineStore('novels', () => {
       loading.value = false
     }
   }
-
+  const fetchNovelWithChapters = async (id: string) => {
+    loading.value = true
+    error.value = null
+    try {
+      const endpoint = getEndpoint('moderator')
+      console.log('Fetching novel with chapters:', id)
+      console.log(endpoint)
+      const response = await $fetch<ApiResponse<Novel>>(
+        `${runtimeConfig.public.apiBaseUrl}/${endpoint}/${id}`,
+        {
+          method: 'GET',
+          credentials: 'include',
+          timeout: 5000
+        }
+      )
+      console.log('Data response in store: ', response)
+      currentNovel.value = response.data
+      console.log('Data current Novel in store: ', currentNovel)
+    } catch (err: unknown) {
+      const errorMessage
+        = err instanceof Error
+          ? err.message.includes('CORS')
+            ? 'Lỗi CORS: Không thể tải danh sách truyện đang chờ duyệt.'
+            : err.message
+          : 'Có lỗi xảy ra khi tải danh sách truyện đang chờ duyệt'
+      error.value = errorMessage
+      console.error('Error fetching pending novels:', err)
+    } finally {
+      loading.value = false
+    }
+  }
   const fetchHiddenNovels = async (query: NovelQuery = {}) => {
     loading.value = true
     error.value = null
@@ -325,6 +382,8 @@ export const useNovelsStore = defineStore('novels', () => {
     isLoading,
     hasError,
 
+    // ALL ROLES NOVELS
+    getNovelById,
     // Actions
     fetchNovels,
     fetchNovelById,
@@ -334,6 +393,7 @@ export const useNovelsStore = defineStore('novels', () => {
 
     // Mod actions
     fetchPendingNovels,
+    fetchNovelWithChapters,
     fetchHiddenNovels,
     warnNovelViolation,
     flagNovel,

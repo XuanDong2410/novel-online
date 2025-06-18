@@ -66,9 +66,19 @@ export const useNovels = () => {
       refresh: async () => await novelsStore.fetchPendingNovels(query)
     }
   }
-
+  const fetchNovelWithChapters = async (novelId: string) => {
+    await novelsStore.fetchNovelWithChapters(novelId)
+    console.log('Data novel in composable: ', novelsStore.currentNovel)
+    return {
+      data: computed(() => novelsStore.currentNovel),
+      pending: computed(() => novelsStore.isLoading),
+      error: computed(() => novelsStore.error),
+      refresh: async () => await novelsStore.fetchNovelWithChapters(novelId)
+    }
+  }
   const fetchHiddenNovels = async (query: NovelQuery = {}) => {
     await novelsStore.fetchHiddenNovels(query)
+
     return {
       data: computed(() => novelsStore.novels),
       pagination: computed(() => novelsStore.pagination),
@@ -96,7 +106,21 @@ export const useNovels = () => {
     }
   }
 
+  // ALL ROLES
+  const getNovelById = async (id: string) => {
+    await novelsStore.getNovelById(id)
+    return {
+      data: computed(() => novelsStore.currentNovel),
+      pending: computed(() => novelsStore.isLoading),
+      error: computed(() => novelsStore.error),
+      refresh: async () => await novelsStore.getNovelById(id)
+    }
+  }
   return {
+
+    // ALL ROLES
+    getNovelById,
+
     fetchNovels,
     fetchNovelById,
     updateNovel,
@@ -105,6 +129,7 @@ export const useNovels = () => {
 
     // Mod
     fetchPendingNovels,
+    fetchNovelWithChapters,
     fetchHiddenNovels,
     warnNovelViolation,
     flagNovel
