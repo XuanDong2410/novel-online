@@ -1,3 +1,5 @@
+import type { statusPublish } from '@/types'
+
 export interface Report {
   _id: string
 }
@@ -26,13 +28,14 @@ export interface Chapter {
   audioFileUrl?: string
   subtitleFileUrl?: string
   novelId: string
-  status: 'draft' | 'pending' | 'editing' | 'warning' | 'approved' | 'rejected' | 'retracted'
+  status: statusPublish
   isPublished: boolean
   publishDate?: Date
   reports: string[] // Report IDs
   moderation?: Moderation
   violation?: Violation
   viewCount: number
+  wordCount: number
   averageListenTime: number
   createdAt: Date
   updatedAt: Date

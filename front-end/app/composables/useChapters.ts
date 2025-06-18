@@ -15,14 +15,14 @@ export const useChapters = () => {
     fetchWarnedChapters: !!chaptersStore.fetchWarnedChapters
   })
 
-  const fetchChapters = async (id: string, query: ChapterQuery = {}) => {
-    await chaptersStore.fetchChaptersNovel(id, query)
+  const fetchChapters = async (id: string) => {
+    await chaptersStore.fetchChaptersNovel(id)
     return {
       data: computed(() => chaptersStore.chapters),
       message: computed(() => chaptersStore.error || ''),
       pending: computed(() => chaptersStore.loading),
       error: computed(() => chaptersStore.error),
-      refresh: async () => await chaptersStore.fetchChaptersNovel(id, query)
+      refresh: async () => await chaptersStore.fetchChaptersNovel(id)
     }
   }
 
@@ -90,8 +90,50 @@ export const useChapters = () => {
       refresh: async () => await chaptersStore.fetchWarnedChapters(query)
     }
   }
+  const fetchModeratorChapterById = async (chapterId: string) => {
+    await chaptersStore.fetchModeratorChapterById(chapterId)
+    return {
+      data: computed(() => chaptersStore.chapter),
+      message: computed(() => chaptersStore.error || ''),
+      pending: computed(() => chaptersStore.loading),
+      error: computed(() => chaptersStore.error)
+    }
+  }
+  const chapterActions = async (chapterId: string, type: string, note: string) => {
+    await chaptersStore.chapterActions(chapterId, type, note)
+    return {
+      message: computed(() => chaptersStore.error || note),
+      pending: computed(() => chaptersStore.loading),
+      error: computed(() => chaptersStore.error),
+      refresh: async () => await chaptersStore.fetchModeratorChapterById(chapterId)
+    }
+  }
 
+  const getChaptersByNovelId = async (novelId: string) => {
+    await chaptersStore.getChaptersByNovelId(novelId)
+    return {
+      data: computed(() => chaptersStore.chapters),
+      message: computed(() => chaptersStore.error || ''),
+      pending: computed(() => chaptersStore.loading),
+      error: computed(() => chaptersStore.error),
+      refresh: async () => await chaptersStore.getChaptersByNovelId(novelId)
+    }
+  }
+  const getChapterById = async (id: string) => {
+    await chaptersStore.getChapterById(id)
+    return {
+      data: computed(() => chaptersStore.chapter),
+      message: computed(() => chaptersStore.error || ''),
+      pending: computed(() => chaptersStore.loading),
+      error: computed(() => chaptersStore.error),
+      refresh: async () => await chaptersStore.getChapterById(id)
+    }
+  }
   return {
+    // ALL ROLES
+    getChaptersByNovelId,
+    getChapterById,
+
     fetchChapters,
     fetchChapter,
     createChapter,
@@ -100,6 +142,8 @@ export const useChapters = () => {
     // Mod
     fetchPendingChapters,
     fetchFlaggedChapters,
-    fetchWarnedChapters
+    fetchWarnedChapters,
+    chapterActions,
+    fetchModeratorChapterById
   }
 }
