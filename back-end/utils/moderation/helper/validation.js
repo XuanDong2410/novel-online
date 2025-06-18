@@ -1,5 +1,6 @@
 import Joi from "joi";
 import mongoose from "mongoose";
+import { sendErrorResponse } from "../../sendErrorResponse.js";
 
 export function validateNovel(novel, session) {
   if (!novel) {
