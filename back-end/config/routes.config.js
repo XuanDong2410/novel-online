@@ -5,7 +5,7 @@ import { protectRoute } from "../middleware/protectRoute.js";
 import authRouters from "../routes/auth.route.js";
 import novelRouters from "../routes/novel/novel.route.js";
 import chapterRouters from "../routes/novel/chapter.route.js";
-
+import attributeRouters from "../routes/attribute.route.js";
 import audioRouters from "../routes/audio.route.js";
 
 import notificationRouters from "../routes/notification.route.js";
@@ -43,6 +43,8 @@ export function configureRoutes(app) {
 
   // Người dùng bình thường
   app.use("/api/v1/audio", audioRouters);
+  app.use("/api/v1/attribute", attributeRouters);
+  
   app.use("/api/v1/novel", userRoute, novelRouters);
   app.use("/api/v1/chapter", userRoute, chapterRouters);
   // Notification routes
