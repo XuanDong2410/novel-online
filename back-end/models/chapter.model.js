@@ -106,6 +106,11 @@ const chapterSchema = new mongoose.Schema({
     default: 0,
     min: 0, // Đảm bảo viewCount không âm
   },
+  wordCount: {
+    type: Number,
+    default: 0,
+    min: 0, // Đảm bảo viewCount không âm
+  },
   averageListenTime: {
     type: Number,
     default: 0, // đơn vị giây, hoặc phút

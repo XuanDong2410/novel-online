@@ -100,9 +100,9 @@ export const getAllChaptersByNovel = async (req, res) => {
     const { novel } = req.params;
     try {        
         const novelId = novel.toString()
-        console.log(novelId);
+        // console.log(novelId);
         const chapters = await Chapter.find({ novelId: novelId });
-        console.log("Chapter: " + chapters)
+        // .log("Chapter: " + chapters)
           // Kiểm tra nếu không có chương nào
           if (!chapters || chapters.length === 0) {
             return res.status(404).json({
