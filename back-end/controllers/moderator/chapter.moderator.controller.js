@@ -23,11 +23,11 @@ const updateRelatedReports = async (targetType, targetId, status, note, session)
 };
 
 // Helper to sync novel status
-const syncNovelStatus = async (novelId, session) => {
+const syncNovelStatus = async (novelId, session, status) => {
   const chapters = await Chapter.find({ novelId }).select("status").session(session);
   const allApproved = chapters.every((ch) => ch.status === "approved");
   const novel = await Novel.findById(novelId).session(session);
-  novel.statusPublish = allApproved ? "approved" : "editing";
+  novel.statusPublish = allApproved ? "approved" : status;
   await novel.save({ session });
 };
 const handleModerationAction = async (
@@ -36,8 +36,7 @@ const handleModerationAction = async (
   action,
   status,
   message,
-  allowedStatuses = null,
-  additionalActions = null
+  // additionalActions = null
 ) => {
   try {
 
@@ -62,7 +61,7 @@ const handleModerationAction = async (
 
       await updateRelatedReports('Chapter', chapter._id, 'reviewed', `Chương ${status}: ${req.body.note}`, session);
 
-      await syncNovelStatus(novel._id, session);
+      await syncNovelStatus(novel._id, session, status);
 
       const logData = {
         action,
@@ -78,9 +77,9 @@ const handleModerationAction = async (
       const result = await moderationActionHandler(logData, session);
       if (!result.success) throw new Error(result.message);
 
-      if (additionalActions) {
-        await additionalActions(chapter, novel, session);
-      }
+      // if (additionalActions) {
+      //   await additionalActions(chapter, novel, session);
+      // }
 
       await session.commitTransaction();
       res.status(200).json({ success: true, message: `Đã ${message} chương` });
@@ -124,25 +123,27 @@ export const getChapterDetails = async (req, res) => {
   try {
     const chapterId = req.params.chapterId;
     if (!chapterId) return;
+    const chapter = await Chapter.findById(chapterId);
+    if (!chapter) {
+      return sendErrorResponse(null, 'Chapter not found', res, 400);
+    };
+    // const [chapter, novel] = await Promise.all([
+    //   Chapter.findById(chapterId),
+    //   Novel.findById(chapter?.novelId)
+    //     .select("title author createdBy")
+    //     .populate("createdBy", "username email")
+    // ]);
 
-    const [chapter, novel] = await Promise.all([
-      Chapter.findById(chapterId).lean(),
-      Novel.findById(chapter?.novelId)
-        .select("title author createdBy")
-        .populate("createdBy", "username email")
-        .lean(),
-    ]);
-
-    const chapterCheck = await validateDocument("Chapter", chapter);
-    if (!chapterCheck.valid) {
-      return sendErrorResponse(null, chapterCheck.message, res, 404);
-    }
+    // const chapterCheck = await validateDocument("Chapter", chapter);
+    // if (!chapterCheck.valid) {
+    //   return sendErrorResponse(null, chapterCheck.message, res, 404);
+    // }
     const novelCheck = await validateDocument("Novel", novel);
     if (!novelCheck.valid) {
       return sendErrorResponse(null, novelCheck.message, res, 400);
     }
 
-    res.status(200).json({ success: true, data: { chapter, novel } });
+    res.status(200).json({ success: true, data: chapter });
   } catch (error) {
     return sendErrorResponse(error, "Lỗi khi lấy chi tiết chương", res, 500);
   }

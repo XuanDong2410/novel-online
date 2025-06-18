@@ -3,74 +3,6 @@
  * @module NovelModeratorController
  */
 
-/**
- * Get a list of pending novels awaiting moderation
- * @async
- * @param {Object} req - Express request object
- * @param {Object} req.query - Query parameters
- * @param {number} req.query.page - Page number for pagination
- * @param {number} req.query.limit - Number of items per page
- * @param {string} req.query.sortBy - Field to sort by
- * @param {string} req.query.sortOrder - Sort direction ('asc' or 'desc')
- * @param {Object} res - Express response object
- * @returns {Promise<Object>} JSON response with novels list, total count, page, and limit
- */
-
-
-/**
- * Get specific chapter details for moderation
- * @async
- * @param {Object} req - Express request object
- * @param {string} req.params.chapterId - Chapter ID
- * @param {Object} res - Express response object
- * @returns {Promise<Object>} JSON response with chapter details
- */
-
-/**
- * Approve a novel and all its chapters
- * @async
- * @param {Object} req - Express request object
- * @param {string} req.params.id - Novel ID
- * @param {Object} req.user - Authenticated user object
- * @param {Object} res - Express response object
- * @returns {Promise<Object>} JSON response confirming approval
- */
-
-/**
- * Reject a novel and its chapters
- * @async
- * @param {Object} req - Express request object
- * @param {string} req.params.id - Novel ID
- * @param {Object} req.body - Request body
- * @param {string} req.body.note - Rejection reason
- * @param {Object} req.user - Authenticated user object
- * @param {Object} res - Express response object
- * @returns {Promise<Object>} JSON response confirming rejection
- */
-
-/**
- * Hide a novel from public view
- * @async
- * @param {Object} req - Express request object
- * @param {string} req.params.id - Novel ID
- * @param {Object} req.body - Request body
- * @param {string} req.body.note - Reason for hiding
- * @param {Object} req.user - Authenticated user object
- * @param {Object} res - Express response object
- * @returns {Promise<Object>} JSON response confirming novel is hidden
- */
-
-/**
- * Unhide a previously hidden novel
- * @async
- * @param {Object} req - Express request object
- * @param {string} req.params.id - Novel ID
- * @param {Object} req.body - Request body
- * @param {string} req.body.note - Reason for unhiding
- * @param {Object} req.user - Authenticated user object
- * @param {Object} res - Express response object
- * @returns {Promise<Object>} JSON response confirming novel is unhidden
- */
 import Novel from "../../models/novel.model.js";
 import Chapter from "../../models/chapter.model.js";
 
@@ -101,10 +33,10 @@ export const getPendingNovels = async (req, res) => {
     const { limit, page, skip } = parsePagination(req.query);
     const { sortBy, sortOrder } = parseSort(req.query);
     const sortOptions = { [sortBy]: sortOrder === "desc" ? -1 : 1 };
-    const validSortFields = ["createdAt", "title", "author"];
-    if (!validSortFields.includes(sortBy)) {
-      return sendErrorResponse(null, "Trường sắp xếp không hợp lệ", res, 400);
-    }
+    // const validSortFields = ["createdAt", "title", "author"];
+    // if (!validSortFields.includes(sortBy)) {
+    //   return sendErrorResponse(null, "Trường sắp xếp không hợp lệ", res, 400);
+    // }
     const novels = await Novel.find({ statusPublish: "pending" })
       .populate("createdBy", "username email")
       .select(
@@ -218,22 +150,16 @@ export const getPublishedNovelsWithPendingChapters = async (req, res) => {
 // GET /api/moderation/novels/:id
 export const getNovelWithChapters = async (req, res) => {
   try {
-    await validateId(req.params.id);
+    // await validateId(req.params.id);
     const novel = await Novel.findById(req.params.id)
-      .populate("createdBy", "username email")
-      .populate("attributes")
-      .lean();
 
     const novelCheck = validateNovel(novel, null);
     if (!novelCheck.valid)
-      return sendErrorResponse(null, novelCheck.message, res, 400);
-    const { chapterPage, chapterLimit } = parsePagination(req.query);
+    return sendErrorResponse(null, novelCheck.message, res, 400);
+    // const { chapterPage } = parsePagination(req.query);
 
     const chapters = await Chapter.find({ novelId: novel._id })
       .sort("chapterNumber")
-      .skip((chapterPage - 1) * chapterLimit)
-      .limit(parseInt(chapterLimit))
-      .lean();
     res.status(200).json({ success: true, data: { novel, chapters } });
   } catch (error) {
     const message = "Lỗi khi lấy chi tiết truyện";
