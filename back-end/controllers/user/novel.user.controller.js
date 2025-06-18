@@ -76,15 +76,38 @@ export const createNovel = async (req, res) => {
     }
 
     // Validate attributes
-    if (attributes?.length) {
-      const validAttributes = await NovelAttribute.find({
-        _id: { $in: attributes },
-        isActive: true,
-      }).lean();
-      if (validAttributes.length !== attributes.length) {
-        return sendErrorResponse(null, 'Một hoặc nhiều thuộc tính không hợp lệ', res, 400);
-      }
-    }
+    // if (attributes?.length) {
+    //   const validAttributes = await NovelAttribute.find({
+    //     _id: { $in: attributes },
+    //     isActive: true,
+    //   }).lean();
+    //   if (validAttributes.length !== attributes.length) {
+    //     return sendErrorResponse(null, 'Một hoặc nhiều thuộc tính không hợp lệ', res, 400);
+    //   }
+    // }
+    // Validate attributes
+    // if (!attributes || attributes.length !== 5) {
+    //   return sendErrorResponse(null, 'Phải cung cấp đúng 5 thuộc tính: genre, subgenre, world, character, audience', res, 400);
+    // }
+
+    // const validAttributes = await NovelAttribute.find({
+    //   _id: { $in: attributes }
+    // }).lean();
+
+    // Check for one attribute of each type
+    // const requiredTypes = ['genre', 'subgenre', 'world', 'character', 'audience'];
+    // const attributeTypes = validAttributes.map(attr => attr.type);
+    // const missingTypes = requiredTypes.filter(type => !attributeTypes.includes(type));
+    // const duplicateTypes = requiredTypes.filter(type => 
+    //   attributeTypes.filter(t => t === type).length > 1
+    // );
+
+    // if (missingTypes.length > 0) {
+    //   return sendErrorResponse(null, `Thiếu thuộc tính: ${missingTypes.join(', ')}`, res, 400);
+    // }
+    // if (duplicateTypes.length > 0) {
+    //   return sendErrorResponse(null, `Thuộc tính trùng lặp: ${duplicateTypes.join(', ')}`, res, 400);
+    // }
 
     // Chọn kiểm duyệt viên ngẫu nhiên
     const [moderator] = await User.aggregate([
@@ -254,22 +277,22 @@ export const updateNovel = async (req, res) => {
         status: novelSchemaRules.status,
       }
     );
-    if (!validationResult.isValid) {
-      return sendErrorResponse(null, JSON.stringify(validationResult.errors), res, 400);
-    }
+    // if (!validationResult.isValid) {
+    //   return sendErrorResponse(null, JSON.stringify(validationResult.errors), res, 400);
+    // }
     if (tags && tags.length > 10) {
       return sendErrorResponse(null, 'Tối đa 10 thẻ được phép', res, 400);
     }
     // Validate attributes
-    if (attributes && attributes.length > 0) {
-      const validAttributes = await NovelAttribute.find({
-        _id: { $in: attributes },
-        isActive: true,
-      }).lean();
-      if (validAttributes.length !== attributes.length) {
-        return sendErrorResponse(null, 'Một hoặc nhiều thuộc tính không hợp lệ', res, 400);
-      }
-    }
+    // if (attributes && attributes.length > 0) {
+    //   const validAttributes = await NovelAttribute.find({
+    //     _id: { $in: attributes },
+    //     isActive: true,
+    //   }).lean();
+    //   if (validAttributes.length !== attributes.length) {
+    //     return sendErrorResponse(null, 'Một hoặc nhiều thuộc tính không hợp lệ', res, 400);
+    //   }
+    // }
     if (!validationResult.hasChanges) {
       return sendErrorResponse(null, 'Không có thay đổi nào trong dữ liệu', res, 400);
     }
@@ -469,7 +492,7 @@ export const requestPublish = async (req, res) => {
 
     // Check chapter count
     const chapterCount = await Chapter.countDocuments({ novelId });
-    if (chapterCount < 10) {
+    if (chapterCount < 1) {
       return sendErrorResponse(null, 'Truyện phải có ít nhất 10 chương', res, 400);
     }
     if (!novel?.moderation?.moderator) {
@@ -482,7 +505,7 @@ export const requestPublish = async (req, res) => {
       { $set: { statusPublish: 'pending', updatedAt: new Date() } },
       { session }
     );
-
+    await Chapter.updateMany({ novelId }, { $set: { statusPublish: 'pending' } }, { session });
     // Log moderation action
     const moderationResult = await moderationActionHandler({
       action: MODERATION_ACTIONS.userNotice,
