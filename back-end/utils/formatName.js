@@ -1,14 +1,24 @@
-import slugify from "slugify";
-// Hàm chuẩn hóa tên (loại bỏ dấu, khoảng trắng, viết thường)
+import slugify from 'slugify';
+import pino from 'pino';
+
+const logger = pino();
+
 export const formatName = (name) => {
-    // Kiểm tra nếu name không phải là chuỗi, mặc định cho nó là một chuỗi rỗng
-    if (typeof name !== "string") {
-        console.error("Warning: Invalid name provided, using empty string.");
-        name = "";
-    }
-    return slugify(name, {
-        lower: true, // Chuyển thành chữ thường
-        strict: true, // Loại bỏ ký tự đặc biệt
-        locale: "vi" // Hỗ trợ chuẩn hóa tiếng Việt
-    }).replace(/-+/g, "-"); // Loại bỏ dấu "-" dư thừa;
+  if (typeof name !== 'string' || name.trim() === '') {
+    logger.warn(`Invalid name provided: ${name}. Using default value 'unknown'.`);
+    name = 'unknown';
+  }
+
+  const formatted = slugify(name, {
+    lower: true,
+    strict: true,
+    locale: 'vi',
+  }).replace(/-+/g, '-');
+
+  if (formatted.length === 0) {
+    logger.warn(`Formatted name is empty for input: ${name}. Using default value 'unknown'.`);
+    return 'unknown';
+  }
+
+  return formatted;
 };

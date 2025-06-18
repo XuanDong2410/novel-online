@@ -23,9 +23,16 @@ import {
   // Các nghiệp vụ khác
   performSystemAction,
 } from '../../controllers/admin/system.admin.controller.js';
+import {
+    seedNovelAttributes,
+    getGroupedNovelAttributes
+} from '../../controllers/admin/attribute.admin.controller.js';
 
 const router = express.Router();
 
+router.post('/add', seedNovelAttributes);
+// Endpoint để lấy tất cả NovelAttribute nhóm theo type
+router.get('/grouped', getGroupedNovelAttributes);
 // Thông báo, nội quy, thông tin chung
 router.post('/announcements', createAnnouncement);
 router.patch('/announcements/:id', updateAnnouncement);
