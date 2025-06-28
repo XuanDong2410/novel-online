@@ -15,8 +15,8 @@ const tagSchemaRules = mongooseSchemaToValidatorRules(Tag.schema);
 const categorySchemaRules = mongooseSchemaToValidatorRules(Category.schema);
 
 // Redis client (giả định)
-const redisClient = Redis.createClient({ url: 'redis://localhost:6379' });
-redisClient.connect().catch(console.error);
+// const redisClient = Redis.createClient({ url: 'redis://localhost:6379' });
+// redisClient.connect().catch(console.error);
 
 /**
  * Sends standardized error response

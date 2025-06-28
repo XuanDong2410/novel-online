@@ -1,0 +1,156 @@
+  <div class="space-y-6">
+      <!-- Main Layout -->
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-4">
+        <!-- Main Content -->
+        <div class="col-span-1 md:col-span-3 space-y-6">
+          <!-- Tabs -->
+          <UTabs v-model:active-id="activeTab" :items="tabs">
+            <template #content="{ item }">
+              <!-- Nội dung gốc -->
+              <div v-if="item.id === 'original'" class="space-y-4">
+                <div class="prose dark:prose-invert max-w-none">
+                  <p
+                    v-for="(paragraph, index) in contentParagraphs"
+                    :key="index"
+                    :class="{ 'bg-yellow-100 dark:bg-yellow-900': isHighlighted(index) }"
+                  >
+                    {{ paragraph }}
+                  </p>
+                </div>
+              </div>
+
+              <!-- Nội dung chú thích -->
+              <div v-if="item.id === 'annotated'" class="space-y-4">
+                <div class="prose dark:prose-invert max-w-none">
+                  <p v-for="(line, index) in annotatedContent" :key="index">
+                    <span v-if="line.type === 'issue'" class="bg-red-100 dark:bg-red-900">
+                      {{ line.text }} ({{ line?.issue?.description }})
+                    </span>
+                    <span v-else>{{ line.text }}</span>
+                  </p>
+                </div>
+              </div>
+
+              <!-- Kiểm duyệt tự động -->
+              <div v-if="item.id === 'auto-moderation'" class="space-y-4">
+                <UButton
+                  icon="i-lucide-bot"
+                  :loading="autoModerationLoading"
+                  color="primary"
+                  @click="handleAutoModeration"
+                >
+                  Chạy kiểm duyệt tự động
+                </UButton>
+                <div v-if="autoModerationResults.length" class="space-y-2">
+                  <div
+                    v-for="result in autoModerationResults"
+                    :key="result.id"
+                    class="p-3 border rounded-lg"
+                  >
+                    <div class="flex items-center justify-between">
+                      <span class="font-medium">{{ result.category }}</span>
+                      <UBadge :color="getSeverityColor(result.severity)">
+                        {{ result.severity }}
+                      </UBadge>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                      {{ result.description }}
+                    </p>
+                    <p class="text-xs text-gray-500">
+                      Dòng: {{ result.line }}
+                    </p>
+                  </div>
+                </div>
+                <p v-else class="text-gray-500">
+                  Chưa có kết quả kiểm duyệt tự động
+                </p>
+              </div>
+
+              <!-- Vấn đề -->
+              <div v-if="item.id === 'issues'" class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <h3 class="font-semibold">
+                    Danh sách vấn đề
+                  </h3>
+                  <UButton
+                    icon="i-lucide-plus"
+                    size="sm"
+                    variant="outline"
+                    @click="showAddIssueModal = true"
+                  >
+                    Thêm vấn đề
+                  </UButton>
+                </div>
+                <div v-if="detectedIssues.length" class="space-y-2">
+                  <div
+                    v-for="issue in detectedIssues"
+                    :key="issue._id"
+                    class="p-3 border rounded-lg flex items-center justify-between"
+                  >
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <span class="font-medium">{{ issue.title }}</span>
+                        <UBadge :color="getSeverityColor(issue.severity)">
+                          {{ issue.severity }}
+                        </UBadge>
+                      </div>
+                      <p class="text-sm text-gray-600 dark:text-gray-400">
+                        {{ issue.description }}
+                      </p>
+                      <p class="text-xs text-gray-500">
+                        Dòng: {{ issue.line }}
+                      </p>
+                    </div>
+                    <UButton
+                      icon="i-lucide-trash"
+                      size="xs"
+                      color="error"
+                      variant="ghost"
+                      :aria-label="`Xóa vấn đề: ${issue.title}`"
+                      @click="removeIssue(issue._id)"
+                    />
+                  </div>
+                </div>
+                <p v-else class="text-gray-500">
+                  Chưa có vấn đề nào được phát hiện
+                </p>
+              </div>
+
+              <!-- Hướng dẫn -->
+              <div v-if="item.id === 'guidelines'" class="space-y-4">
+                <div
+                  v-for="guideline in guidelines"
+                  :key="guideline.id"
+                  class="p-3 border rounded-lg"
+                >
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <UCheckbox
+                        v-model="guideline.checked"
+                        :aria-label="`Kiểm tra hướng dẫn: ${guideline.title}`"
+                      />
+                      <span class="font-medium">{{ guideline.title }}</span>
+                    </div>
+                    <UBadge v-if="guideline.issues.length" color="error" variant="subtle">
+                      {{ guideline.issues.length }} vấn đề
+                    </UBadge>
+                  </div>
+                  <p class="text-sm text-gray-600 dark:text-gray-400">
+                    {{ guideline.description }}
+                  </p>
+                  <div v-if="guideline.issues.length" class="mt-2 space-y-1">
+                    <p
+                      v-for="issue in guideline.issues"
+                      :key="issue.id"
+                      class="text-xs text-gray-500"
+                    >
+                      Dòng {{ issue.line }}: {{ issue.description }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </UTabs>
+        </div>
+      </div>
+    </div>

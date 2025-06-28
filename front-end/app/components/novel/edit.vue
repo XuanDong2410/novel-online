@@ -225,7 +225,7 @@
         </div>
         <div class="pt-4 w-full flex items-center">
           <img
-            :src="formState.coverImage?.src || fallbackImages[Math.floor(Math.random() * fallbackImages.length)]"
+            :src="formState?.coverImage || fallbackImages[Math.floor(Math.random() * fallbackImages.length)]"
             alt="Ảnh bìa"
             class="w-48 h-auto m-auto object-cover rounded shadow"
             @error="handleImgError"

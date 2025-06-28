@@ -8,6 +8,12 @@ import type { Novel, NovelQuery } from '~/types/novel'
 import { useNovelsStore } from '~/stores/novel.store'
 import { useNovels } from '~/composables/useNovels'
 
+const {
+  getStatusLabel,
+  getStatusColor,
+  getStatusIcon
+} = useStatus()
+
 const UButton = resolveComponent('UButton')
 const UBadge = resolveComponent('UBadge')
 const UDropdownMenu = resolveComponent('UDropdownMenu')
@@ -40,8 +46,6 @@ const selectedNovel = ref<Novel | undefined>(undefined)
 const isRefetching = ref(false)
 const lastQuery = ref<NovelQuery | null>(null)
 
-const isModerationModalOpen = ref(false)
-
 function openAdminContactModal(novel: Novel) {
   selectedNovel.value = novel
   isAdminContactModalOpen.value = true
@@ -60,11 +64,6 @@ function openListChapterModal(novel: Novel) {
 function openViewStatsModal(novel: Novel) {
   selectedNovel.value = novel
   isViewStatsModalOpen.value = true
-}
-
-function openModerationModal(novel: Novel) {
-  selectedNovel.value = novel
-  isModerationModalOpen.value = true
 }
 async function openPublishNovel(novel: Novel) {
   try {
@@ -91,7 +90,7 @@ function getRowItems(_row: Row<Novel>, role: 'user' | 'moderator' | 'admin' | 's
   const baseItems = [
     {
       type: 'label',
-      label: 'Actions'
+      label: 'Hành động'
     },
     {
       type: 'separator'
@@ -118,7 +117,7 @@ function getRowItems(_row: Row<Novel>, role: 'user' | 'moderator' | 'admin' | 's
   const roleSpecificItems: Record<string, DropdownItem[]> = {
     user: [
       {
-        label: 'Xuất bản',
+        label: 'Yêu cầu xuất bản',
         icon: 'i-lucide-check-circle',
         onSelect() {
           openPublishNovel(novel)
@@ -162,46 +161,6 @@ function getRowItems(_row: Row<Novel>, role: 'user' | 'moderator' | 'admin' | 's
             title: 'Truyện đã xóa',
             description: 'Truyện đã được xóa thành công.'
           })
-        }
-      }
-    ],
-    moderator: [
-      {
-        label: 'Kiểm duyệt',
-        icon: 'i-lucide-component',
-        onSelect() {
-          openModerationModal(novel)
-        }
-      },
-      {
-        label: 'Duyệt truyện',
-        icon: 'i-lucide-check',
-        onSelect() {
-          toast.add({
-            title: 'Truyện đã duyệt',
-            description: 'Truyện đã được duyệt thành công.'
-          })
-        }
-      },
-      {
-        label: 'Từ chối truyện',
-        icon: 'i-lucide-x',
-        color: 'error',
-        onSelect() {
-          toast.add({
-            title: 'Truyện bị từ chối',
-            description: 'Truyện đã bị từ chối.'
-          })
-        }
-      },
-      {
-        type: 'separator'
-      },
-      {
-        label: 'Thống kê',
-        icon: 'i-lucide-chart-line',
-        onSelect() {
-          openViewStatsModal(novel)
         }
       }
     ],
@@ -279,15 +238,26 @@ const columns: TableColumn<Novel>[] = [
             h('div', {
               class: 'absolute z-50 hidden group-hover:block bg-gray-900 text-white text-sm rounded px-2 py-1 left-0 top-full mt-1 whitespace-normal max-w-xs'
             }, row.original.title)
-          ]),
-          h('p', { class: '' }, row.original.statusPublish)
+          ])
         ])
       ])
     }
   },
   {
+    accessorKey: 'statusPublish',
+    header: ({ column }) => getHeader(column, 'Xuất bản', 'right'),
+    cell: ({ row }) =>
+      h(UBadge, {
+        class: 'w-full justify-center capitalize text-center',
+        variant: 'subtle',
+        color: getStatusColor(row.original.statusPublish),
+        label: getStatusLabel(row.original.statusPublish),
+        icon: getStatusIcon(row.original.statusPublish)
+      })
+  },
+  {
     accessorKey: 'status',
-    header: 'Trạng thái',
+    header: 'Nội dung',
     filterFn: 'equals',
     cell: ({ row }) => {
       const statusMap: Record<string, { label: string }> = {
@@ -400,8 +370,8 @@ const debouncedFetchNovels = useDebounceFn(async () => {
       return
     }
     console.log('Fetching novels with query:', query)
-    if (props.role === 'moderator') {
-      await novelsStore.fetchPendingNovels(query)
+    if (props.role === 'admin') {
+      await novelsStore.fetchAllNovelsForAdmin()
     } else {
       await novelsStore.fetchNovels(query)
     }
@@ -571,6 +541,7 @@ function handleNovelEditSubmit(updatedNovel: Novel) {
   >
     <template #body>
       <NovelChapter
+        :role="role"
         :novel-id="selectedNovel?._id || ''"
       />
     </template>
@@ -612,15 +583,6 @@ function handleNovelEditSubmit(updatedNovel: Novel) {
       <NovelAdminContact
         :novel="selectedNovel ?? undefined"
       />
-    </template>
-  </UModal>
-
-  <UModal
-    v-model:open="isModerationModalOpen"
-    fullscreen
-  >
-    <template #content>
-      <NovelModeration />
     </template>
   </UModal>
 </template>

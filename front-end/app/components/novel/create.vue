@@ -90,10 +90,10 @@
       </div>
 
       <!-- Thẻ (Tags) -->
-      <div name="tags" class="w-full">
+      <!-- <div name="tags" class="w-full">
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Thẻ</label>
         <UInput v-model="tagsInput" placeholder="Nhập các thẻ, cách nhau bằng dấu phẩy" class="w-full" />
-      </div>
+      </div> -->
 
       <!-- Ảnh bìa (Cover Image) -->
       <div name="coverImage" class="w-full">
@@ -264,7 +264,7 @@ async function createNovel() {
     }
 
     console.log('Data create: ', JSON.parse(JSON.stringify(novelData))) // Log dữ liệu sạch
-    const response = await $fetch<ApiResponse<Novel>>('http://localhost:5000/api/v1/user/novels', {
+    const response = await $fetch<ApiResponse<Novel>>('http://localhost:5000/api/v1/novels', {
       method: 'POST',
       credentials: 'include',
       headers: {

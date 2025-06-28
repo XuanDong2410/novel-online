@@ -1,4 +1,4 @@
-import { ENV_VARS } from './envVars.config.js';
+import { ENV_VARS } from './env.config.js';
 import OpenAI from "openai";
 
 if (!ENV_VARS.OPENAI_API_KEY) {

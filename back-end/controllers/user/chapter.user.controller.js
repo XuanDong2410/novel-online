@@ -256,7 +256,13 @@ export const updateChapter = async (req, res) => {
 
     // Fetch and validate chapter
     const chapter = await Chapter.findById(chapterId).session(session);
-    const chapterCheck = await validateChapter(chapter, req.user, ['draft', 'editing']);
+    if(req.user.role != 'admin' || 'moderator'){
+      const chapterCheck = await validateChapter(chapter, req.user, ['draft', 'editing']);
+      if (!chapterCheck.valid) {
+        return sendErrorResponse(null, chapterCheck.message, res, 400);
+      }
+    }
+    // const chapterCheck = await validateChapter(chapter, req.user, ['draft', 'editing']);
     if (!chapterCheck.valid) {
       return sendErrorResponse(null, chapterCheck.message, res, 400);
     }

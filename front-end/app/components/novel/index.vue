@@ -6,6 +6,12 @@ import type { Novel } from '~/types/novel'
 import { useNovels } from '~/composables/useNovels'
 import { useNovelsStore } from '~/stores/novel.store'
 
+const {
+  getStatusLabel,
+  getStatusColor,
+  getStatusIcon
+} = useStatus()
+
 const { fetchNovels } = useNovels()
 const novelsStore = useNovelsStore()
 const toast = useToast()
@@ -157,6 +163,18 @@ const columns: TableColumn<Novel>[] = [
     }
   },
   {
+    accessorKey: 'statusPublish',
+    header: 'Xuất bản',
+    cell: ({ row }) =>
+      h(UBadge, {
+        class: 'w-full justify-center capitalize text-center',
+        variant: 'subtle',
+        color: getStatusColor(row.original.statusPublish),
+        label: getStatusLabel(row.original.statusPublish),
+        icon: getStatusIcon(row.original.statusPublish)
+      })
+  },
+  {
     accessorKey: 'createdAt',
     header: ({ column }) => {
       const isSorted = column.getIsSorted()
@@ -182,7 +200,7 @@ const columns: TableColumn<Novel>[] = [
   },
   {
     accessorKey: 'status',
-    header: 'Trạng thái',
+    header: 'Trạng thái nội dung',
     filterFn: 'equals',
     cell: ({ row }) => {
       const statusMap: Record<string, { label: string }> = {

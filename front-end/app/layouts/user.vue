@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { useCurrentLayout } from '~/composables/useCurrentLayout'
 import { useAuthStore } from '~/stores/auth.store'
 
 const route = useRoute()
 const toast = useToast()
 
+const layout = useCurrentLayout()
+layout.value = 'user'
 const open = ref(false)
 
 const links = [[{
@@ -84,13 +87,13 @@ const links = [[{
   defaultOpen: false,
   children: [{
     label: 'Kiến thức cơ bản',
-    to: '/user/informations/basicknowledge',
+    to: '/information/basicKnowledge',
     onSelect: () => {
       open.value = false
     }
   }, {
     label: 'Các danh hiệu',
-    to: '/user/informations/awards',
+    to: '/information/awards',
     icon: 'i-lucide-award',
     onSelect: () => {
       open.value = false
@@ -161,8 +164,11 @@ const user = {
       class="bg-(--ui-bg-elevated)/25"
       :ui="{ footer: 'lg:border-t lg:border-(--ui-border)' }"
     >
-      <template #header="{ collapsed }">
-        <TeamsMenu :collapsed="collapsed" />
+      <template #header>
+        <NuxtLink to="/" class="flex items-center gap-3 transition-transform hover:scale-105 overflow-hidden">
+          <UIcon name="i-lucide-book-open" class="text-primary-400 text-2xl" />
+          <span class="text-1xl font-extrabold tracking-tight">NOVEL ONLINE</span>
+        </NuxtLink>
       </template>
 
       <template #default="{ collapsed }">

@@ -19,7 +19,7 @@ export const useChapterStore = defineStore('chapters', () => {
 
   const getEndpoint = (role: string) => {
     const roleEndpoints: Record<string, string> = {
-      user: 'api/v1/user/chapters',
+      user: 'api/v1/chapters',
       moderator: 'api/v2/moderator/chapters',
       admin: 'api/v2/admin/chapters'
     }
@@ -31,7 +31,7 @@ export const useChapterStore = defineStore('chapters', () => {
     error.value = null
     try {
       const response = await $fetch<ApiResponse<Chapter[]>>(
-        `${runtimeConfig.public.apiBaseUrl}/api/v1/chapter/get/${id}`,
+        `${runtimeConfig.public.apiBaseUrl}/api/v1/chapter/${id}/chapters`,
         {
           method: 'GET',
           credentials: 'include',
@@ -155,14 +155,18 @@ export const useChapterStore = defineStore('chapters', () => {
     loading.value = true
     error.value = null
     try {
-      // const role = authStore.user?.role || 'user'
-      // const endpoint = getEndpoint(role)
-      // console.log('Fetching chapters for novel:', { id, query })
       const response = await $fetch<ApiResponse<Chapter[]>>(
-        `${runtimeConfig.public.apiBaseUrl}/api/v1/chapter/get/${id}`,
+        `${runtimeConfig.public.apiBaseUrl}/api/v1/chapter/${id}/chapters`,
         {
           method: 'GET',
           credentials: 'include',
+          query: {
+            page: pagination.value.page,
+            limit: pagination.value.limit
+          },
+          headers: {
+            'Content-Type': 'application/json'
+          },
           timeout: 5000
         }
       )
@@ -323,9 +327,9 @@ export const useChapterStore = defineStore('chapters', () => {
         }
       )
       chapters.value = response.data
-      if (chapter.value && !chapters.value.find(ch => ch._id === chapter.value?._id)) {
-        chapter.value = null
-      }
+      // if (chapter.value && !chapters.value.find(ch => ch._id === chapter.value?._id)) {
+      //   chapter.value = null
+      // }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Có lỗi xảy ra khi tải danh sách chương'
       error.value = errorMessage

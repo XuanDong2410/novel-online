@@ -1,6 +1,6 @@
 // import type { AvatarProps } from '@nuxt/ui'
 import type { User } from '@/types/user'
-import type { Chapter } from '@/types/chapter'
+// import type { Chapter } from '@/types/chapter'
 import type { statusPublish } from '@/types'
 
 export interface NovelAttribute {
@@ -29,7 +29,7 @@ export interface Novel {
     count: number
     averageRating?: number
   }
-  chapters: Chapter[]
+  // chapters: Chapter[]
   isHidden: boolean
   hiddenBy?: string // User ID
   viewCount: number
@@ -63,9 +63,15 @@ export interface ApiResponse<T> {
   }
 }
 
-export interface NovelQuery {
+export type NovelQuery = {
   page?: number
   limit?: number
   sort?: string
-  direction?: 'asc' | 'desc'
+  direction?: string
+  statusPublish?: string
+  status?: string
+  isHidden?: boolean
+  author?: string
+  title?: string
+  attribute?: string
 }

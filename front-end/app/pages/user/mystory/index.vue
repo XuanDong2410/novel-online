@@ -10,22 +10,13 @@ definePageMeta({
 
 const { isNotificationsSlideoverOpen } = useDashboard()
 const auth = useAuthStore()
-const { fetchNovels, fetchPendingNovels } = useNovels()
+const { fetchMyNovels } = useNovels()
 const role = computed(() => auth.user?.role)
 console.log('User Role:', role.value)
 
 // Fetch novels based on role
-const fetchNovelsByRole = async () => {
-  if (role.value === 'moderator') {
-    return await fetchPendingNovels()
-  } else if (role.value === 'admin') {
-    return await fetchNovels()
-  } else {
-    return await fetchNovels()
-  }
-}
 
-const { data, pending, refresh, error } = await fetchNovelsByRole()
+const { data, pending, refresh, error } = await fetchMyNovels()
 console.log('Novels fetch:', data)
 async function handleNovelChange() {
   await refresh()
@@ -38,7 +29,7 @@ async function handleNovelChange() {
     <UDashboardPanel id="novelHome">
       <template #header>
         <UDashboardNavbar
-          :title="role === 'admin' ? 'Quản lý truyện' : role === 'moderator' ? 'Kiểm duyệt truyện' : 'Truyện của tôi'"
+          title="Truyện của tôi"
           :ui="{ right: 'gap-3' }"
         >
           <template #leading>

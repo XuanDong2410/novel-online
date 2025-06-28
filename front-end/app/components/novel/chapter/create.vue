@@ -2,6 +2,7 @@
 import { ref, reactive } from 'vue'
 import type { Chapter } from '~/types/chapter'
 import { useChapters } from '~/composables/useChapters'
+import type { statusPublish } from '~/types'
 
 const props = defineProps<{
   novelId: string
@@ -20,12 +21,13 @@ const defaultChapter = (): Chapter => ({
   novelId: props.novelId,
   content: '',
   chapterNumber: 0,
-  status: 'draft',
+  status: 'draft' as statusPublish,
   isPublished: false,
   reports: [],
   createdAt: new Date(),
   updatedAt: new Date(),
   viewCount: 0,
+  wordCount: 0,
   averageListenTime: 0
 })
 

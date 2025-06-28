@@ -1,4 +1,3 @@
-import { CUSTOM_THRESHOLDS } from "./index.js";
 export const CATEGORY_LABELS = {
   "harassment": "Quấy rối",
   "harassment/threatening": "Đe dọa",
@@ -14,6 +13,49 @@ export const CATEGORY_LABELS = {
   "violence": "Bạo lực",
   "violence/graphic": "Bạo lực đồ họa",
 };
+
+export const CATEGORY_MAPPING = {
+  'violence': 'violence',
+  'violence/graphic': 'violence',
+  'sexual': 'adult',
+  'sexual/minors': 'adult',
+  'hate': 'hate_speech',
+  'hate/threatening': 'hate_speech',
+  'harassment': 'hate_speech',
+  'harassment/threatening': 'hate_speech',
+  'illicit': 'spam',
+  'illicit/violent': 'spam',
+  'self-harm': 'self_harm',
+  'self-harm/intent': 'self_harm',
+  'self-harm/instructions': 'self_harm',
+  'none': null
+};
+export const SEVERITY_MAPPING = {
+  'violence': 'high',
+  'violence/graphic': 'critical',
+  'sexual': 'high',
+  'sexual/minors': 'critical',
+  'hate': 'medium',
+  'hate/threatening': 'high',
+  'harassment': 'medium',
+  'harassment/threatening': 'medium',
+  'illicit': 'medium',
+  'illicit/violent': 'high',
+  'self-harm': 'critical',
+  'self-harm/intent': 'medium',
+  'self-harm/instructions': 'medium',
+  default: 'low',
+};
+
+
+export const CUSTOM_THRESHOLDS = {
+  'sexual': 0.30,
+  'violence': 0.75,
+  'sexual/minors': 0.75,
+  'self-harm': 0.75,
+  'hate': 0.8,
+};
+
 /**
  * Trả về danh sách nhãn vi phạm dựa trên kết quả kiểm duyệt.
  * @param {Object} result - Kết quả từ OpenAI Moderation API.
@@ -31,13 +73,14 @@ export function getViolationLabels(result) {
 
     for (const [key, score] of Object.entries(scores)) {
         const isFlagged = categories[key] || false;
-        const threshold = CUSTOM_THRESHOLDS[key] || 0.5;
+        const threshold = CUSTOM_THRESHOLDS[key] || 0.7;
 
         if (score > threshold || isFlagged) {
         labels.push({
             key,
             label: CATEGORY_LABELS[key] || key,
             score: parseFloat(score.toFixed(2)),
+            severity: SEVERITY_MAPPING[key] || 'low',
         });
         }
     }

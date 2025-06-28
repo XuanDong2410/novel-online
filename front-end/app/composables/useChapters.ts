@@ -105,7 +105,7 @@ export const useChapters = () => {
       message: computed(() => chaptersStore.error || note),
       pending: computed(() => chaptersStore.loading),
       error: computed(() => chaptersStore.error),
-      refresh: async () => await chaptersStore.fetchModeratorChapterById(chapterId)
+      refresh: async () => await chaptersStore.getChapterById(chapterId)
     }
   }
 

@@ -1,0 +1,530 @@
+<script setup lang="ts">
+import type { TableColumn } from '@nuxt/ui'
+import type { Column } from '@tanstack/vue-table'
+import { upperFirst } from 'scule'
+import { getPaginationRowModel } from '@tanstack/table-core'
+import { useDebounceFn } from '@vueuse/core'
+import type { Audio, AudioQuery, Chapter, Novel } from '~/types/audio'
+import { useAudiosStore } from '~/stores/audio.store'
+
+const { getAudioStatusLabel, getAudioStatusColor, getAudioStatusIcon, getAudioStatusBgColor, getAudioStatusIconColor } = useAudioStatus()
+const UButton = resolveComponent('UButton')
+const UBadge = resolveComponent('UBadge')
+const UDropdownMenu = resolveComponent('UDropdownMenu')
+const audiosStore = useAudiosStore()
+const toast = useToast()
+const table = useTemplateRef('table')
+
+// const props = defineProps<{
+//   // data?: Audio[]
+//   // loading?: boolean
+//   // error: string | null
+// }>()
+
+const columnFilters = ref([{ id: 'audioName', value: '' }])
+const columnVisibility = ref()
+const rowSelection = ref({})
+const statusFilter = ref('all')
+const isRefetching = ref(false)
+const lastQuery = ref<AudioQuery | null>(null)
+const selectedAudio = ref<Audio | undefined>(undefined)
+const selectedChapterForAudio = ref<Chapter | null>(null)
+
+const isAudioModalOpen = ref(false)
+const isAddAudioModalOpen = ref(false)
+
+async function openAudioModal(audio: Audio) {
+  selectedAudio.value = audio
+  isAudioModalOpen.value = true
+}
+
+async function openAddAudioModal(chapter: Chapter) {
+  selectedChapterForAudio.value = chapter
+  isAddAudioModalOpen.value = true
+}
+
+const columns: TableColumn<Audio>[] = [
+  {
+    accessorKey: '_id',
+    header: ({ column }) => getHeader(column, 'ID', 'left')
+  },
+  {
+    accessorKey: 'story',
+    header: 'Truyện/Chương',
+    cell: ({ row }) => {
+      const novel = getNovelById(getChapterById(row.original.chapterId)?.novelId)
+      return h('div', { class: 'flex items-center space-x-3' }, [
+        h('img', {
+          src: novel?.coverImage || '/placeholder.svg?height=40&width=30',
+          class: 'w-8 h-10 object-cover rounded-lg shadow-sm'
+        }),
+        h('div', { class: 'min-w-0' }, [
+          h('p', {
+            class: 'text-sm font-medium text-(--ui-text-highlighted) truncate'
+          }, novel?.title),
+          h('p', {
+            class: 'text-xs text-(--ui-text-muted) truncate'
+          }, `Chapter ${getChapterById(row.original.chapterId)?.chapterNumber}`)
+        ])
+      ])
+    }
+  },
+  {
+    accessorKey: 'audioName',
+    header: 'Tên Audio',
+    cell: ({ row }) => {
+      return h('div', { class: 'flex items-center space-x-3' }, [
+        h('div', {
+          class: `w-10 h-10 rounded-lg flex items-center justify-center ${getAudioStatusBgColor(row.original.status)}`
+        }, [
+          h(resolveComponent('UIcon'), {
+            name: getAudioStatusIcon(row.original.status),
+            class: `w-5 h-5 ${getAudioStatusIconColor(row.original.status)}`
+          })
+        ]),
+        h('div', { class: 'min-w-0' }, [
+          h('p', {
+            class: 'text-sm font-medium text-(--ui-text-highlighted) truncate'
+          }, row.original.audioName),
+          h('p', {
+            class: 'text-xs text-(--ui-text-muted) truncate'
+          }, `${row.original.voice.name} (${row.original.voice.ssmlGender})`)
+        ])
+      ])
+    }
+  },
+  {
+    accessorKey: 'status',
+    header: ({ column }) => getHeader(column, 'Trạng thái', 'right'),
+    cell: ({ row }) => {
+      return h('div', { class: 'flex items-center space-x-2' }, [
+        h('div', {
+          class: `w-2 h-2 rounded-full ${getStatusDotColor(row.original.status)}`
+        }),
+        h(UBadge, {
+          label: getAudioStatusLabel(row.original.status),
+          color: getAudioStatusColor(row.original.status),
+          variant: 'soft',
+          size: 'sm'
+        })
+      ])
+    }
+  },
+  {
+    accessorKey: 'duration',
+    header: 'Thời lượng',
+    cell: ({ row }) =>
+      h('div', {
+        class: 'text-sm text-(--ui-text-muted) font-mono'
+      }, formatDuration(row.original.duration))
+  },
+  {
+    accessorKey: 'size',
+    header: 'Dung lượng',
+    cell: ({ row }) =>
+      h('div', {
+        class: 'text-sm text-(--ui-text-muted) font-mono'
+      }, formatFileSize(row.original.size))
+  },
+  {
+    id: 'actions',
+    header: ({ column }) => h('div', { class: 'text-right' }, getHeader(column, 'Hành động', 'right')),
+    cell: ({ row }) => {
+      return h('div', { class: 'text-right flex items-center space-x-1' }, [
+        row.original.status === 'processed' &&
+          h(UButton, {
+            icon: 'i-lucide-play',
+            size: 'xs',
+            variant: 'ghost',
+            class: 'hover:bg-blue-50 dark:hover:bg-blue-900/20',
+            title: 'Phát audio',
+            onClick: () => playAudio(row.original._id)
+          }),
+        h(UButton, {
+          icon: 'i-lucide-eye',
+          size: 'xs',
+          variant: 'ghost',
+          class: 'hover:bg-slate-50 dark:hover:bg-slate-800',
+          title: 'Xem chi tiết',
+          onClick: () => openAudioModal(row.original)
+        }),
+        h(UDropdownMenu, {
+          items: getAudioActions(row.original),
+          content: { align: 'end' }
+        }, () =>
+          h(UButton, {
+            icon: 'i-lucide-ellipsis-vertical',
+            size: 'xs',
+            variant: 'ghost',
+            class: 'hover:bg-slate-50 dark:hover:bg-slate-800'
+          })
+        )
+      ])
+    }
+  }
+]
+
+function getHeader(column: Column<Audio>, label: string, position: 'left' | 'right') {
+  const isPinned = column.getIsPinned()
+  return h(UButton, {
+    color: 'neutral',
+    variant: 'ghost',
+    label,
+    icon: isPinned ? 'i-lucide-pin-off' : 'i-lucide-pin',
+    class: '-mx-2.5',
+    onClick() {
+      column.pin(isPinned === position ? false : position)
+    }
+  })
+}
+
+const columnPinning = ref({
+  left: ['_id'],
+  right: ['actions']
+})
+
+const debouncedFetchAudios = useDebounceFn(async () => {
+  if (isRefetching.value) return
+  isRefetching.value = true
+  try {
+    const query: AudioQuery = {
+      page: pagination.value.pageIndex + 1,
+      limit: pagination.value.pageSize,
+      sort: 'createdAt',
+      direction: 'desc'
+    }
+    if (statusFilter.value !== 'all') {
+      query.status = statusFilter.value
+    }
+    if (columnFilters.value[0]?.value) {
+      query.search = columnFilters.value[0].value
+    }
+    if (JSON.stringify(query) === JSON.stringify(lastQuery.value)) {
+      console.log('Skipping fetch; query unchanged:', query)
+      return
+    }
+    console.log('Fetching audios with query:', query)
+    await audiosStore.fetchAudios(query)
+    lastQuery.value = { ...query }
+  } catch (error) {
+    console.error('Error refetching audios:', error)
+    toast.add({
+      title: 'Lỗi',
+      description: 'Không thể tải danh sách audio.',
+      color: 'error'
+    })
+  } finally {
+    isRefetching.value = false
+  }
+}, 1500)
+
+const pagination = ref({
+  pageIndex: 0,
+  pageSize: audiosStore.pagination.limit
+})
+
+watch(
+  [statusFilter, () => pagination.value.pageIndex, () => columnFilters.value[0]?.value],
+  async ([newStatusFilter], [oldStatusFilter]) => {
+    if (newStatusFilter !== oldStatusFilter) {
+      pagination.value.pageIndex = 0
+    }
+    if (table?.value?.tableApi) {
+      const statusColumn = table.value.tableApi.getColumn('status')
+      if (statusColumn) {
+        if (newStatusFilter === 'all') {
+          statusColumn.setFilterValue(undefined)
+        } else {
+          statusColumn.setFilterValue(newStatusFilter)
+        }
+      }
+    }
+    await debouncedFetchAudios()
+  },
+  { immediate: true }
+)
+
+const audioForm = ref({
+  audioName: '',
+  selectedVoice: null,
+  audioFileType: 'MP3',
+  generateSubtitle: true,
+  enableSync: true,
+  highQuality: false,
+  enableEnhancement: false,
+  speed: 1.0,
+  volume: 80
+})
+
+const audioFileTypeOptions = [
+  { label: 'MP3 (Recommended)', value: 'MP3' },
+  { label: 'WAV (High Quality)', value: 'WAV' },
+  { label: 'OGG (Web Optimized)', value: 'OGG' }
+]
+
+const voiceOptions = [
+  { label: 'Minh Đức (Male, Deep)', value: 'minh-duc', name: 'Minh Đức', gender: 'MALE', language: 'Vietnamese' },
+  { label: 'Thu Hà (Female, Sweet)', value: 'thu-ha', name: 'Thu Hà', gender: 'FEMALE', language: 'Vietnamese' },
+  { label: 'Hoàng Nam (Neutral, Clear)', value: 'hoang-nam', name: 'Hoàng Nam', gender: 'NEUTRAL', language: 'Vietnamese' }
+]
+
+function getNovelById(novelId: string): Novel {
+  return audiosStore.novels.find(novel => novel._id === novelId)
+}
+
+function getChapterById(chapterId: string): Chapter | undefined {
+  return audiosStore.chapters.find(chapter => chapter._id === chapterId)
+}
+
+function formatDuration(seconds: number): string {
+  if (!seconds) return '0:00'
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
+}
+
+function formatFileSize(bytes: number): string {
+  if (!bytes) return '0 B'
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`
+}
+
+function getAudioActions(audio: Audio) {
+  const actions = []
+  if (audio.status === 'processed') {
+    actions.push([{ label: 'Phát Audio', icon: 'i-lucide-play', click: () => playAudio(audio._id) }])
+    actions.push([{ label: 'Tải xuống', icon: 'i-lucide-download', click: () => downloadAudio(audio.audioFileUrl, audio.audioName) }])
+  }
+  if (audio.status === 'error') {
+    actions.push([{ label: 'Thử lại', icon: 'i-lucide-refresh-cw', click: () => retryAudioProcessing(audio._id) }])
+  }
+  actions.push([{ label: 'Xem chi tiết', icon: 'i-lucide-eye', click: () => openAudioModal(audio) }])
+  actions.push([{ label: 'Xóa', icon: 'i-lucide-trash-2', click: () => deleteAudio(audio._id) }])
+  return actions
+}
+
+async function submitAudioForm() {
+  audiosStore.submittingAudio = true
+  try {
+    const newAudio: Audio = {
+      _id: `audio_${Date.now()}`,
+      audioName: audioForm.value.audioName,
+      audioFileUrl: '',
+      audioFileType: audioForm.value.audioFileType,
+      duration: 0,
+      size: 0,
+      status: 'pending',
+      voice: (() => {
+        const selected = voiceOptions.find(v => v.value === audioForm.value.selectedVoice) || voiceOptions[0]
+        return {
+          name: selected?.name,
+          ssmlGender: selected?.gender,
+          languageCodes: [selected?.language === 'Vietnamese' ? 'vi-VN' : 'en-US']
+        }
+      })(),
+      subtitle: audioForm.value.generateSubtitle ? { url: '', language: 'vi-VN', format: 'VTT' } : null,
+      chapterId: selectedChapterForAudio.value!._id
+    }
+    await audiosStore.addAudio(newAudio)
+    isAddAudioModalOpen.value = false
+  } catch (error) {
+    console.error('Failed to add audio:', error)
+    toast.add({ title: 'Lỗi', description: 'Không thể thêm audio.', color: 'error' })
+  } finally {
+    audiosStore.submittingAudio = false
+  }
+}
+</script>
+
+<template>
+  <div class="flex flex-wrap items-center justify-between gap-1.5">
+    <UInput
+      :model-value="(table?.tableApi?.getColumn('audioName')?.getFilterValue() as string)"
+      class="max-w-sm"
+      icon="i-lucide-search"
+      placeholder="Tìm kiếm audio..."
+      @update:model-value="table?.tableApi?.getColumn('audioName')?.setFilterValue($event)"
+    />
+    <div class="flex flex-wrap items-center gap-1.5">
+      <UDropdownMenu
+        :items="[
+          { label: 'Tất cả trạng thái', value: 'all' },
+          { label: 'Đang xử lý', value: 'pending' },
+          { label: 'Hoàn thành', value: 'processed' },
+          { label: 'Lỗi', value: 'error' }
+        ]"
+        v-model="statusFilter"
+        :content="{ align: 'end' }"
+      >
+        <UButton
+          label="Lọc theo trạng thái"
+          color="neutral"
+          variant="outline"
+          trailing-icon="i-lucide-filter"
+        />
+      </UDropdownMenu>
+      <UDropdownMenu
+        :items="
+          table?.tableApi
+            ?.getAllColumns()
+            .filter((column) => column.getCanHide())
+            .map((column) => ({
+              label: upperFirst(column.id),
+              type: 'checkbox',
+              checked: column.getIsVisible(),
+              onUpdateChecked(checked: boolean) {
+                table?.tableApi?.getColumn(column.id)?.toggleVisibility(!!checked)
+              },
+              onSelect(e?: Event) {
+                e?.preventDefault()
+              }
+            }))
+        "
+        :content="{ align: 'end' }"
+      >
+        <UButton
+          label="Hiển thị"
+          color="neutral"
+          variant="outline"
+          trailing-icon="i-lucide-settings-2"
+        />
+      </UDropdownMenu>
+      <UButton
+        icon="i-lucide-download"
+        variant="outline"
+        label="Xuất báo cáo"
+        @click="audiosStore.exportAudioReport"
+      />
+    </div>
+  </div>
+
+  <UTable
+    ref="table"
+    v-model:column-pinning="columnPinning"
+    v-model:column-filters="columnFilters"
+    v-model:column-visibility="columnVisibility"
+    v-model:row-selection="rowSelection"
+    v-model:pagination="pagination"
+    :pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
+    class="shrink-0"
+    :data="data || audiosStore.audios"
+    :columns="columns"
+    :loading="loading || audiosStore.isLoading"
+    :ui="{
+      base: 'table-fixed border-separate border-spacing-0',
+      thead: '[&>tr]:bg-(--ui-bg-elevated)/50 [&>tr]:after:content-none',
+      tbody: '[&>tr]:last:[&>td]:border-b-0',
+      th: 'py-1 first:rounded-l-[calc(var(--ui-radius)*2)] last:rounded-r-[calc(var(--ui-radius)*2)] border-y border-(--ui-border) first:border-l last:border-r',
+      td: 'border-b border-(--ui-border)'
+    }"
+  />
+
+  <div class="flex items-center justify-between gap-3 border-t border-(--ui-border) pt-4 mt-auto">
+    <div class="text-sm text-(--ui-text-muted)">
+      {{ table?.tableApi?.getFilteredSelectedRowModel().rows.length || 0 }} / {{
+        table?.tableApi?.getFilteredRowModel().rows.length || 0
+      }} hàng được chọn.
+    </div>
+    <UPagination
+      :default-page="pagination.pageIndex + 1"
+      :items-per-page="pagination.pageSize"
+      :total="audiosStore.pagination.total"
+      @update:page="(p) => pagination.pageIndex = p - 1"
+    />
+  </div>
+
+  <UModal
+    v-model:open="isAudioModalOpen"
+    title="Chi tiết Audio"
+    close-icon="i-lucide-arrow-left"
+    fullscreen
+    class="overflow-scroll"
+  >
+    <template #content>
+      <AudioDetails
+        v-if="selectedAudio"
+        :audio-id="selectedAudio._id"
+        :on-close="() => { isAudioModalOpen = false }"
+      />
+    </template>
+  </UModal>
+
+  <UModal
+    v-model:open="isAddAudioModalOpen"
+    title="Thêm Audio cho Chương"
+    close-icon="i-lucide-x"
+    class="max-w-3xl"
+  >
+    <template #content>
+      <UForm :state="audioForm" class="space-y-6" @submit="submitAudioForm">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <UFormField label="Tên Audio" required>
+            <UInput v-model="audioForm.audioName" placeholder="Nhập tên audio..." size="lg" />
+          </UFormField>
+          <UFormField label="Định dạng Audio" required>
+            <USelectMenu
+              v-model="audioForm.audioFileType"
+              :options="audioFileTypeOptions"
+              placeholder="Chọn định dạng..."
+              size="lg"
+            />
+          </UFormField>
+        </div>
+        <UFormField label="Chọn Giọng đọc" required>
+          <USelectMenu
+            v-model="audioForm.selectedVoice"
+            :options="voiceOptions"
+            placeholder="Chọn giọng..."
+            option-attribute="label"
+            value-attribute="value"
+            size="lg"
+          />
+        </UFormField>
+        <div class="bg-(--ui-bg-elevated) rounded-xl p-6">
+          <h4 class="font-medium text-(--ui-text) mb-4">Tùy chọn xử lý</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <UCheckbox v-model="audioForm.generateSubtitle" label="Tự động tạo phụ đề (VTT)" />
+            <UCheckbox v-model="audioForm.enableSync" label="Đồng bộ với nội dung chương" />
+            <UCheckbox v-model="audioForm.highQuality" label="Chất lượng cao (xử lý chậm hơn)" />
+            <UCheckbox v-model="audioForm.enableEnhancement" label="Cải thiện âm thanh" />
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <UFormField label="Tốc độ nói">
+            <div class="space-y-2">
+              <USlider v-model="audioForm.speed" :min="0.5" :max="2" :step="0.1" />
+              <div class="flex justify-between text-xs text-(--ui-text-muted)">
+                <span>0.5x</span>
+                <span class="font-medium">{{ audioForm.speed }}x</span>
+                <span>2.0x</span>
+              </div>
+            </div>
+          </UFormField>
+          <UFormField label="Mức âm lượng">
+            <div class="space-y-2">
+              <USlider v-model="audioForm.volume" :min="0" :max="100" :step="5" />
+              <div class="flex justify-between text-xs text-(--ui-text-muted)">
+                <span>0%</span>
+                <span class="font-medium">{{ audioForm.volume }}%</span>
+                <span>100%</span>
+              </div>
+            </div>
+          </UFormField>
+        </div>
+        <div class="flex justify-end space-x-3 pt-6 border-t border-(--ui-border)">
+          <UButton variant="outline" size="lg" @click="isAddAudioModalOpen = false">Hủy</UButton>
+          <UButton
+            type="submit"
+            :loading="audiosStore.submittingAudio"
+            icon="i-lucide-plus"
+            size="lg"
+            class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+          >
+            Tạo Audio
+          </UButton>
+        </div>
+      </UForm>
+    </template>
+  </UModal>
+</template>

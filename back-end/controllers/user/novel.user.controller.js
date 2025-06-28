@@ -492,8 +492,8 @@ export const requestPublish = async (req, res) => {
 
     // Check chapter count
     const chapterCount = await Chapter.countDocuments({ novelId });
-    if (chapterCount < 1) {
-      return sendErrorResponse(null, 'Truyện phải có ít nhất 10 chương', res, 400);
+    if (chapterCount < 5) {
+      return sendErrorResponse(null, 'Truyện phải có ít nhất 5 chương', res, 400);
     }
     if (!novel?.moderation?.moderator) {
       return sendErrorResponse(null, 'Chưa có kiểm duyệt viên được gán cho truyện này', res, 400);
@@ -505,7 +505,7 @@ export const requestPublish = async (req, res) => {
       { $set: { statusPublish: 'pending', updatedAt: new Date() } },
       { session }
     );
-    await Chapter.updateMany({ novelId }, { $set: { statusPublish: 'pending' } }, { session });
+    await Chapter.updateMany({ novelId }, { $set: { status: 'pending' } }, { session });
     // Log moderation action
     const moderationResult = await moderationActionHandler({
       action: MODERATION_ACTIONS.userNotice,

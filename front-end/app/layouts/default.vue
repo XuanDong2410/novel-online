@@ -64,7 +64,7 @@ async function Out() {
     </UHeader>
   </ClientOnly>
   <!-- Slideover Menu -->
-  <USlideover v-model:open="showMenu" as-child="true">
+  <USlideover v-model:open="showMenu" as-child="true" title="Layout">
     <template #content>
       <UCard class="overflow-y-auto flex flex-col p-1 cursor-pointer">
         <!-- Authenticated User Panel -->
@@ -106,11 +106,16 @@ async function Out() {
                 <UIcon name="i-lucide-globe" />  Quản lý hệ thống
               </NuxtLink>
             </li>
-            <li v-else-if="auth.user?.role === 'moderator'" class="flex items-center gap-2 hover:text-primary-600 transition-colors">
+            <li v-if="auth.user?.role === 'moderator'" class="flex items-center gap-2 hover:text-primary-600 transition-colors">
+              <NuxtLink to="/moderator/novel">
+                <UIcon name="i-lucide-component" />  Kiểm duyệt
+              </NuxtLink>
+            </li>
+            <!-- <li v-if="auth.user?.role !== 'user'" class="flex items-center gap-2 hover:text-primary-600 transition-colors">
               <NuxtLink to="/moderator/novel">
                 <UIcon name="i-lucide-component" /> Kiểm duyệt bài viết
               </NuxtLink>
-            </li>
+            </li> -->
             <li v-else class="flex items-center gap-2 hover:text-primary-600 transition-colors">
               <UIcon name="i-lucide-arrow-up-circle" /> Nâng cấp tài khoản
               <UBadge color="success" label="NEW" size="xs" />

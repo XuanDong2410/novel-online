@@ -1,11 +1,17 @@
 <script setup lang="ts">
+import { h, resolveComponent } from 'vue'
 import type { TableColumn } from '@nuxt/ui'
 import { upperFirst } from 'scule'
 import { getPaginationRowModel, type Row } from '@tanstack/table-core'
-import type { Chapter } from '~/types/chapter'
-import { useChapters } from '~/composables/useChapters'
+import type { Chapter, IAudio } from '~/types/chapter'
 
+const {
+  getStatusLabel,
+  getStatusColor,
+  getStatusIcon
+} = useStatus()
 const UButton = resolveComponent('UButton')
+const UBadge = resolveComponent('UBadge')
 const UDropdownMenu = resolveComponent('UDropdownMenu')
 const UCheckbox = resolveComponent('UCheckbox')
 
@@ -16,18 +22,20 @@ const columnFilters = ref([{ id: 'title', value: '' }])
 const columnVisibility = ref()
 const rowSelection = ref({})
 
-const props = defineProps<{ novelId: string }>()
+const props = defineProps<{
+  novelId: string
+  role: 'user' | 'moderator' | 'admin' | 'system' | undefined
+}>()
 
 if (!props.novelId) {
   console.error('Invalid novelId')
   toast.add({ title: 'Lỗi', description: 'ID truyện không hợp lệ.', color: 'error' })
 }
-
+const { fetchChapters, getChapterById } = useChapters()
 // Fetch chapters with useAsyncData
 const { data: chapters, refresh, error } = await useAsyncData(
   `chapters-${props.novelId}`,
   async () => {
-    const { fetchChapters } = useChapters()
     const { data } = await fetchChapters(props.novelId)
     return data.value || []
   }
@@ -40,21 +48,68 @@ if (error.value) {
 const isEditChapterModalOpen = ref(false)
 const selectedChapterId = ref<string | null>(null)
 const isCreateChapterModalOpen = ref(false)
+const isPreviewVttModalOpen = ref(false)
+const isAudioModalOpen = ref(false)
+const selectedChapterForAudio = ref<string | null>(null)
 
 function openEditChapterModal(chapterId: string | null) {
   selectedChapterId.value = chapterId
   isEditChapterModalOpen.value = true
 }
+const chapter = ref<Chapter>()
+async function openAddAudioModal(chapterId: string) {
+  selectedChapterForAudio.value = chapterId
+  const result = await getChapterById(chapterId)
+  chapter.value = result.data?.value || undefined
+  isAudioModalOpen.value = true
+}
+// State để lưu trữ nội dung VTT đã tải về từ URL
+const fetchedVttContent = ref<string | null>(null)
+// State để hiển thị trạng thái tải khi fetch
+const isLoading = ref<boolean>(false)
+// State để hiển thị lỗi khi fetch
+const fetchError = ref<string | null>(null)
+/**
+ * @function fetchAndShowModal
+ * @description Hàm xử lý việc tải nội dung VTT từ URL và sau đó hiển thị modal.
+ */
+const fetchAndShowModal = async (contentVttUrl: string) => {
+  isLoading.value = true
+  fetchError.value = null // Clear previous errors
+  fetchedVttContent.value = null // Clear previous content
 
+  try {
+    const response = await fetch(contentVttUrl)
+    if (!response.ok) {
+      throw new Error(`Không thể tải VTT từ URL: ${response.statusText} (${response.status})`)
+    }
+    const text = await response.text()
+    fetchedVttContent.value = text // Lưu nội dung đã tải
+    isPreviewVttModalOpen.value = true // Mở modal sau khi tải thành công
+  } catch (err: unknown) {
+    let errorMessage = 'Không xác định lỗi'
+    if (err && typeof err === 'object' && 'message' in err) {
+      errorMessage = (err as { message: string }).message
+    }
+    fetchError.value = `Lỗi khi tải URL: ${errorMessage}`
+    console.error('Lỗi khi tải URL:', err)
+  } finally {
+    isLoading.value = false
+  }
+}
 // Handle chapter creation or update to refresh data
 function handleChapterChange() {
   refresh()
   toast.add({ title: 'Thành công', description: 'Danh sách chương đã được cập nhật.', color: 'success' })
 }
-
+// function handleAudioAdded() {
+//   isAddAudioModalOpen.value = false // Đóng modal sau khi thêm
+//   refresh() // Refresh danh sách chapters để hiển thị audio mới
+//   toast.add({ title: 'Thành công', description: 'Audio đã được thêm vào chương.', color: 'success' })
+// }
 function getRowItems(_row: Row<Chapter>) {
-  return [
-    { type: 'label', label: 'Actions' },
+  const chapter: Chapter = _row.original
+  const baseItems = [
     { type: 'separator' },
     {
       label: 'Chỉnh sửa chương',
@@ -65,7 +120,7 @@ function getRowItems(_row: Row<Chapter>) {
     },
     { type: 'separator' },
     {
-      label: 'Delete',
+      label: 'Xóa',
       icon: 'i-lucide-trash',
       color: 'error',
       onSelect() {
@@ -76,6 +131,77 @@ function getRowItems(_row: Row<Chapter>) {
       }
     }
   ]
+  interface DropdownItem {
+    label?: string
+    icon?: string
+    color?: string
+    type?: 'label' | 'separator'
+    onSelect?: () => void
+    disabled?: boolean
+    tooltip?: string
+  }
+
+  // Prepare role-specific dropdown items
+  function getRoleSpecificItems(chapter: Chapter): DropdownItem[] {
+    const items: DropdownItem[] = []
+
+    if (props.role === 'admin') {
+      items.push(
+        { type: 'separator' },
+        {
+          label: 'Âm thanh', // Nút thêm Audio mới
+          icon: 'i-lucide-file-audio',
+          onSelect() {
+            openAddAudioModal(chapter._id)
+          }
+        }
+      )
+    }
+
+    // Logic cho Preview VTT
+    const chapterAudios: (IAudio | string)[] | undefined = chapter.audios
+    let firstVttUrl: string | undefined
+
+    // Kiểm tra nếu audios đã được populate và có ít nhất một audio với subtitle VTT
+    if (chapterAudios && Array.isArray(chapterAudios) && chapterAudios.length > 0) {
+      const firstAudioWithVtt: IAudio | undefined = chapterAudios.find(
+        audio => typeof audio === 'object' && (audio as IAudio).subtitle?.url && (audio as IAudio).subtitle?.format === 'VTT'
+      ) as IAudio | undefined
+
+      if (firstAudioWithVtt) {
+        firstVttUrl = firstAudioWithVtt.subtitle?.url
+      }
+    } else if ((chapter as Partial<Chapter> & { subtitleFileUrl?: string }).subtitleFileUrl) { // Trường hợp URL VTT trực tiếp trên chapter
+      firstVttUrl = (chapter as Partial<Chapter> & { subtitleFileUrl?: string }).subtitleFileUrl
+    }
+
+    if (props.role === 'admin' || props.role === 'moderator') {
+      items.push(
+        { type: 'separator' },
+        {
+          label: 'Xem phụ đề',
+          icon: 'i-lucide-eye',
+          color: 'info',
+          disabled: !firstVttUrl || isLoading.value, // Disable nếu không có URL hoặc đang tải
+          tooltip: !firstVttUrl ? 'Không có file VTT nào để xem trước.' : undefined,
+          onSelect() {
+            if (firstVttUrl) {
+              fetchAndShowModal(firstVttUrl)
+            } else {
+              toast.add({ title: 'Thông báo', description: 'Không tìm thấy URL VTT.', color: 'info' })
+            }
+          }
+        }
+      )
+    }
+
+    return items
+  }
+
+  // Replace previous roleSpecificItems logic with function call
+  const roleSpecificItems: DropdownItem[] = getRoleSpecificItems(chapter)
+
+  return [...roleSpecificItems, ...baseItems]
 }
 
 const columns: TableColumn<Chapter>[] = [
@@ -102,6 +228,82 @@ const columns: TableColumn<Chapter>[] = [
       h('div', { class: 'flex items-center gap-3' }, [
         h('div', undefined, [h('p', { class: 'font-medium text-(--ui-text-highlighted)' }, row.original.title)])
       ])
+  },
+  {
+    accessorKey: 'status',
+    header: 'Trạng thái',
+    cell: ({ row }) =>
+      h(UBadge, {
+        class: 'w-full justify-center capitalize text-center',
+        variant: 'subtle',
+        color: getStatusColor(row.original.status),
+        label: getStatusLabel(row.original.status),
+        icon: getStatusIcon(row.original.status)
+      })
+  },
+  {
+    accessorKey: 'audios', // Thay đổi accessorKey để truy cập mảng audios
+    header: 'Âm thanh',
+    meta: {
+      class: {
+        td: 'w-[100px] text-center'
+      }
+    },
+    cell: ({ row }) => {
+      const chapter = row.original
+      const audioList = chapter.audios
+
+      if (!audioList || !Array.isArray(audioList) || audioList.length === 0) {
+        return h('span', { class: 'text-gray-500' }, 'Không có audio')
+      }
+
+      // Filter for actual IAudio objects (not just IDs)
+      const populatedAudios = audioList.filter((audio): audio is IAudio => typeof audio === 'object' && audio !== null)
+
+      if (populatedAudios.length === 0) {
+        return h('span', { class: 'text-gray-500' }, 'Không có audio đã populate')
+      }
+
+      return h('div', { class: 'flex flex-col gap-1' }, [
+        ...populatedAudios.map(() =>
+          h('a', {
+            // href: audio.audioFileUrl,
+            target: '_blank',
+            rel: 'noopener noreferrer',
+            class: 'text-primary-500 hover:underline flex items-center gap-1 text-sm'
+          }, [
+            h(UButton, {
+              label: 'Âm thanh',
+              variant: 'outline',
+              size: 'sm',
+              icon: 'i-lucide-headphones',
+              class: 'w-full items-center',
+              placeholder: 'Nghe audio',
+              onClick: () => {
+                openAddAudioModal(row.original._id)
+              }
+            })
+            // h('span', audio.audioName || `Audio ${audio._id.substring(0, 6)}`)
+          ])
+        )
+        // Có thể thêm nút xem VTT tại đây nếu muốn, hoặc giữ trong dropdown actions
+        // Ví dụ:
+        // h(UButton, {
+        //   label: 'Xem VTT',
+        //   variant: 'link',
+        //   size: 'sm',
+        //   icon: 'i-lucide-file-text',
+        //   onClick: () => {
+        //     if (populatedAudios[0]?.subtitle?.url && populatedAudios[0]?.subtitle?.format === 'VTT') {
+        //       fetchAndShowModal(populatedAudios[0].subtitle.url);
+        //     } else {
+        //       toast.add({ title: 'Thông báo', description: 'Không có VTT cho audio này.', color: 'info' });
+        //     }
+        //   }
+        // })
+      ])
+    }
+    // aggregationFn: 'uniqueCount' // Không cần thiết cho cột hiển thị list audio
   },
   {
     accessorKey: 'createdAt',
@@ -136,7 +338,10 @@ const columns: TableColumn<Chapter>[] = [
       ])
   }
 ]
-
+// const grouping_options = ref<GroupingOptions>({
+//   groupedColumnMode: 'remove',
+//   getGroupedRowModel: getGroupedRowModel()
+// })
 const statusFilter = ref('all')
 
 watch(
@@ -209,7 +414,7 @@ const pagination = ref({
             :content="{ align: 'end' }"
           >
             <UButton
-              label="Display"
+              label="Hiển thị"
               color="neutral"
               variant="outline"
               trailing-icon="i-lucide-settings-2"
@@ -261,6 +466,22 @@ const pagination = ref({
       >
         <template #body>
           <NovelChapterEdit :chapter-id="selectedChapterId ? selectedChapterId : ''" @submit="handleChapterChange" />
+        </template>
+      </UModal>
+      <!-- Modal để hiển thị VttPreview component -->
+      <UModal v-model:open="isPreviewVttModalOpen" fullscreen title="Nội dung file VTT">
+        <template #body>
+          <AdminAudioPreview :vtt-source-content="fetchedVttContent" />
+        </template>
+      </UModal>
+      <UModal
+        v-model:open="isAudioModalOpen"
+        title="Âm thanh của chương"
+        fullscreen
+        :class="{ width: 'max-w-3xl' }"
+      >
+        <template #body>
+          <AdminAudio :chapter="chapter" />
         </template>
       </UModal>
     </template>

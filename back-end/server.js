@@ -3,7 +3,7 @@ import { configureRoutes } from "./config/routes.config.js";
 import { connectDB } from "./config/db.config.js";
 import { initializeSystemUser } from "./config/systemAccount.config.js";
 import http from "http";
-import { setupWebSocket } from "./config/webSocket.config.js";
+// import { setupWebSocket } from "./config/webSocket.config.js";
 
 async function startServer() {
   const app = createApp();
@@ -11,7 +11,7 @@ async function startServer() {
   const server = http.createServer(app);
 
   // Khởi tạo socket
-  setupWebSocket(server);
+  // setupWebSocket(server);
 
   connectDB();
   initializeSystemUser();

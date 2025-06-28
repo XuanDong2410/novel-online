@@ -1,0 +1,194 @@
+import textToSpeech from '@google-cloud/text-to-speech';
+import fs from 'fs/promises';
+import { Storage } from '@google-cloud/storage';
+import { getAudioDurationInSeconds } from 'get-audio-duration';
+import cloudinary from '../../config/cloudinary.config.js';
+import { formatName } from '../formatName.js';
+import * as wav from 'wav';
+import pkg from 'audio-encoder';
+const { encode } = pkg;
+import { v4 as uuidv4 } from 'uuid'; // Thêm uuid để tạo tên duy nhất
+
+// Chuyển sang TextToSpeechClient để kiểm tra logic
+const client = new textToSpeech.TextToSpeechClient();
+
+// Replace these with your actual Google Cloud project number and location
+const PROJECT_NUMBER = '288333871607'; // Đã khớp với log
+const LOCATION = 'global'; // Khớp với vùng bucket
+const GCS_BUCKET_NAME = 'novel-online';
+
+const storage = new Storage();
+
+async function synthesizeChunk(content, voiceConfig, customConfig, outputGcsUri) {
+  const request = {
+    input: { text: content },
+    voice: {
+      languageCode: voiceConfig.languageCodes?.[0] || 'vi-VN',
+      ssmlGender: voiceConfig.ssmlGender || 'FEMALE',
+      name: voiceConfig.name,
+    },
+    audioConfig: {
+      audioEncoding: 'LINEAR16',
+      sampleRateHertz: voiceConfig.naturalSampleRateHertz || 24000,
+      pitch: customConfig.pitch || 0,
+      speakingRate: customConfig.speakingRate || 1,
+    },
+  };
+
+  try {
+    const [response] = await client.synthesizeSpeech(request); // Sử dụng synthesizeSpeech
+    console.log('Operation completed with full response:', JSON.stringify(response, null, 2)); // Ghi toàn bộ response
+    if (response && response.audioContent) {
+      // Lưu audioContent vào file tạm
+      const tempFilePath = `temp-${uuidv4()}.wav`;
+      await fs.writeFile(tempFilePath, response.audioContent, 'binary');
+      // Upload lên GCS
+      const gcsFileName = outputGcsUri.split('gs://')[1];
+      await storage.bucket(GCS_BUCKET_NAME).upload(tempFilePath, {
+        destination: gcsFileName,
+      });
+      await fs.unlink(tempFilePath); // Xóa file tạm
+      return outputGcsUri; // Trả về URI đã upload
+    }
+    throw new Error('Synthesis operation failed with no audio content');
+  } catch (error) {
+    console.error('Detailed synthesis error:', error.message, error.stack); // Ghi lỗi chi tiết
+    if (error.details) {
+      console.error('Error details:', error.details); // Ghi chi tiết từ API
+    } else if (error.code && error.errors) {
+      console.error('API error code:', error.code, 'Errors:', error.errors); // Ghi mã lỗi và chi tiết
+    }
+    throw error;
+  }
+}
+
+// Code long (giữ nguyên để cập nhật sau)
+/*
+async function synthesizeChunkLong(content, voiceConfig, customConfig, outputGcsUri) {
+  const request = {
+    parent: `projects/${PROJECT_NUMBER}/locations/${LOCATION}`,
+    input: { text: content },
+    voice: {
+      languageCode: voiceConfig.languageCodes?.[0] || 'vi-VN',
+      ssmlGender: voiceConfig.ssmlGender || 'FEMALE',
+      name: voiceConfig.name,
+    },
+    audioConfig: {
+      audioEncoding: 'LINEAR16',
+      sampleRateHertz: voiceConfig.naturalSampleRateHertz || 24000,
+      pitch: customConfig.pitch || 0,
+      speakingRate: customConfig.speakingRate || 1,
+    },
+    outputGcsUri,
+  };
+
+  try {
+    const [operation] = await client.synthesizeLongAudio(request); // Bắt đầu operation
+    console.log('Operation started:', operation.name); // Ghi tên operation
+    const [response] = await operation.promise(); // Chờ kết quả
+    console.log('Operation completed with full response:', JSON.stringify(response, null, 2)); // Ghi toàn bộ response
+    if (response && response.outputUri) {
+      return response.outputUri;
+    }
+    throw new Error('Synthesis operation failed with no output URI');
+  } catch (error) {
+    console.error('Detailed synthesis error:', error.message, error.stack); // Ghi lỗi chi tiết
+    if (error.details) {
+      console.error('Error details:', error.details); // Ghi chi tiết từ API
+    } else if (error.code && error.errors) {
+      console.error('API error code:', error.code, 'Errors:', error.errors); // Ghi mã lỗi và chi tiết
+    } else if (error.note) {
+      console.error('Additional error note:', error.note); // Ghi thêm thông tin lỗi
+    }
+    throw error;
+  }
+}
+*/
+
+export async function processAudio(content, voiceConfig, novelName, chapterName, customConfig = {}) {
+  try {
+    const formattedNovel = formatName(novelName);
+    const formattedChapter = formatName(chapterName);
+    const fileName = `${voiceConfig.name || 'default'}-${formattedNovel}-${formattedChapter}-${uuidv4()}`; // Thêm UUID
+    const gcsObjectName = `${formattedNovel}/${formattedChapter}/${fileName}.wav`; // Đường dẫn GCS
+    const outputGcsUri = `gs://${GCS_BUCKET_NAME}/${gcsObjectName}`;
+    const publicId = `novels/${formattedNovel}/${formattedChapter}/${fileName}`; // Đường dẫn Cloudinary
+
+    // Kiểm tra file đã tồn tại trên Cloudinary
+    try {
+      const { resources } = await cloudinary.api.resources_by_ids([publicId], { resource_type: 'video' });
+      if (resources.length) {
+        console.log(`Audio file already exists: ${resources[0].secure_url}`);
+        return {
+          audioUrl: resources[0].secure_url,
+          duration: resources[0].duration,
+          size: resources[0].bytes,
+        };
+      }
+    } catch (error) {
+      console.log('File does not exist, generating new audio.');
+    }
+
+    // Chia nhỏ nội dung nếu quá dài
+    const chunks = [];
+    if (content.length > 5000) {
+      const sentences = content.split(/\.|\!|\?/);
+      let currentChunk = '';
+      for (const sentence of sentences) {
+        if ((currentChunk + sentence).length > 5000) {
+          chunks.push(currentChunk.trim());
+          currentChunk = sentence;
+        } else {
+          currentChunk += sentence;
+        }
+      }
+      if (currentChunk) chunks.push(currentChunk.trim());
+    } else {
+      chunks.push(content);
+    }
+
+    let finalGcsUri = '';
+    for (const chunk of chunks) {
+      const chunkGcsUri = `${outputGcsUri}-chunk-${chunks.indexOf(chunk)}`; // Tạo URI duy nhất cho chunk
+      const chunkUri = await synthesizeChunk(chunk, voiceConfig, customConfig, chunkGcsUri);
+      if (!finalGcsUri) finalGcsUri = chunkUri; // Lưu URI của chunk đầu tiên
+    }
+
+    // Download the audio from GCS (sử dụng finalGcsUri từ chunk đầu tiên)
+    const tempFilePath = `temp-${fileName}.wav`;
+    const options = {
+      destination: tempFilePath,
+    };
+    await storage.bucket(GCS_BUCKET_NAME).file(finalGcsUri.split('gs://')[1].split('-chunk-')[0]).download(options); // Tải file gốc
+
+    // Chuyển đổi từ LINEAR16 sang MP3 bằng audio-encoder
+    const mp3TempFilePath = `temp-${fileName}.mp3`;
+    const audioBuffer = await fs.readFile(tempFilePath);
+    const mp3Buffer = await encode(audioBuffer, {
+      channels: 1, // Giả sử mono
+      sampleRate: voiceConfig.naturalSampleRateHertz || 24000,
+      bitRate: 128,
+      format: 'mp3',
+    });
+    await fs.writeFile(mp3TempFilePath, mp3Buffer);
+
+    const duration = await getAudioDurationInSeconds(mp3TempFilePath);
+    const stats = await fs.stat(mp3TempFilePath);
+    const size = stats.size;
+
+    // Upload to Cloudinary
+    const uploadResult = await cloudinary.uploader.upload(mp3TempFilePath, {
+      public_id: publicId,
+      resource_type: 'video',
+    });
+
+    await fs.unlink(tempFilePath);
+    await fs.unlink(mp3TempFilePath);
+    await storage.bucket(GCS_BUCKET_NAME).file(finalGcsUri.split('gs://')[1].split('-chunk-')[0]).delete().catch(console.error);
+
+    return { audioUrl: uploadResult.secure_url, duration, size };
+  } catch (error) {
+    console.error(`Error generating audio: ${error.message}`);
+    throw new Error('Failed to generate and upload audio');
+  }
+}

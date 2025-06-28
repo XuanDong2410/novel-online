@@ -1,0 +1,805 @@
+<template>
+  <!-- Audio Statistics Dashboard -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div
+      v-for="stat in audioStats"
+      :key="stat.key"
+      class="relative overflow-hidden bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-all duration-300"
+    >
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-slate-600 dark:text-slate-400">
+            {{ stat.label }}
+          </p>
+          <p class="text-3xl font-bold text-slate-900 dark:text-white mt-2">
+            {{ stat.value }}
+          </p>
+          <div class="flex items-center mt-2">
+            <UIcon
+              :name="stat.trend === 'up' ? 'i-heroicons-arrow-trending-up' : 'i-heroicons-arrow-trending-down'"
+              :class="[
+                'w-4 h-4 mr-1',
+                stat.trend === 'up' ? 'text-emerald-500' : 'text-red-500'
+              ]"
+            />
+            <span
+              :class="[
+                'text-sm font-medium',
+                stat.trend === 'up' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+              ]"
+            >
+              {{ stat.change }}%
+            </span>
+            <span class="text-sm text-slate-500 ml-1">vs last month</span>
+          </div>
+        </div>
+        <div
+          :class="[
+            'w-12 h-12 rounded-xl flex items-center justify-center',
+            stat.bgColor
+          ]"
+        >
+          <UIcon :name="stat.icon" :class="['w-6 h-6', stat.iconColor]" />
+        </div>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="mt-4">
+        <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2">
+          <div
+            :class="[
+              'h-2 rounded-full transition-all duration-500',
+              stat.progressColor
+            ]"
+            :style="{ width: `${stat.progress}%` }"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio Management Table -->
+  <UCard class="overflow-hidden">
+    <template #header>
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+            Audio Management
+          </h3>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Manage and monitor all audio files across your stories
+          </p>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <UInput
+            v-model="audioSearchQuery"
+            placeholder="Search audios..."
+            icon="i-heroicons-magnifying-glass"
+            size="sm"
+            class="w-64"
+          />
+          <USelectMenu
+            v-model="selectedAudioStatus"
+            :items="audioStatusOptions"
+            placeholder="Filter by status"
+            size="sm"
+          />
+          <UButton
+            icon="i-heroicons-document-arrow-down"
+            variant="outline"
+            size="sm"
+            @click="exportAudioReport"
+          >
+            Export
+          </UButton>
+        </div>
+      </div>
+    </template>
+
+    <div class="overflow-x-auto">
+      <UTable
+        :rows="paginatedAudios"
+        :columns="audioColumns"
+        :loading="loadingAudios"
+        class="w-full"
+      >
+        <template #story-data="{ row }">
+          <div class="flex items-center space-x-3">
+            <img
+              :src="getNovelById(getChapterById(row.chapterId)?.novelId)?.coverImage || '/placeholder.svg?height=40&width=30'"
+              class="w-8 h-10 object-cover rounded-lg shadow-sm"
+            >
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-slate-900 dark:text-white truncate">
+                {{ getNovelById(getChapterById(row.chapterId)?.novelId)?.title }}
+              </p>
+              <p class="text-xs text-slate-500 truncate">
+                Chapter {{ getChapterById(row.chapterId)?.chapterNumber }}
+              </p>
+            </div>
+          </div>
+        </template>
+
+        <template #audioName-data="{ row }">
+          <div class="flex items-center space-x-3">
+            <div
+              :class="[
+                'w-10 h-10 rounded-lg flex items-center justify-center',
+                getAudioStatusBgColor(row.status)
+              ]"
+            >
+              <UIcon
+                :name="getAudioStatusIcon(row.status)"
+                :class="['w-5 h-5', getAudioStatusIconColor(row.status)]"
+              />
+            </div>
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-slate-900 dark:text-white truncate">
+                {{ row.audioName }}
+              </p>
+              <p class="text-xs text-slate-500 truncate">
+                {{ row.voice.name }} ({{ row.voice.ssmlGender }})
+              </p>
+            </div>
+          </div>
+        </template>
+
+        <template #status-data="{ row }">
+          <div class="flex items-center space-x-2">
+            <div
+              :class="[
+                'w-2 h-2 rounded-full',
+                getStatusDotColor(row.status)
+              ]"
+            />
+            <UBadge
+              :label="getAudioStatusLabel(row.status)"
+              :color="getAudioStatusColor(row.status)"
+              variant="soft"
+              size="sm"
+            />
+          </div>
+        </template>
+
+        <template #duration-data="{ row }">
+          <div class="text-sm text-slate-600 dark:text-slate-400 font-mono">
+            {{ formatDuration(row.duration) }}
+          </div>
+        </template>
+
+        <template #size-data="{ row }">
+          <div class="text-sm text-slate-600 dark:text-slate-400 font-mono">
+            {{ formatFileSize(row.size) }}
+          </div>
+        </template>
+
+        <template #actions-data="{ row }">
+          <div class="flex items-center space-x-1">
+            <UButton
+              v-if="row.status === 'processed'"
+              icon="i-heroicons-play"
+              size="xs"
+              variant="ghost"
+              class="hover:bg-blue-50 dark:hover:bg-blue-900/20"
+              @click="playAudio(row._id)"
+            />
+            <UButton
+              icon="i-heroicons-eye"
+              size="xs"
+              variant="ghost"
+              class="hover:bg-slate-50 dark:hover:bg-slate-800"
+              @click="openAudioModal(row)"
+            />
+            <UDropdownMenu :items="getAudioActions(row)">
+              <UButton
+                icon="i-heroicons-ellipsis-vertical"
+                size="xs"
+                variant="ghost"
+                class="hover:bg-slate-50 dark:hover:bg-slate-800"
+              />
+            </UDropdownMenu>
+          </div>
+        </template>
+      </UTable>
+    </div>
+
+    <!-- Pagination -->
+    <template #footer>
+      <div class="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-700">
+        <div class="text-sm text-slate-500 dark:text-slate-400">
+          Showing {{ ((currentPage - 1) * pageSize) + 1 }} to {{ Math.min(currentPage * pageSize, filteredAudios.length) }} of {{ filteredAudios.length }} results
+        </div>
+        <UPagination
+          v-model="currentPage"
+          :page-count="pageSize"
+          :total="filteredAudios.length"
+          size="sm"
+        />
+      </div>
+    </template>
+  </UCard>
+  <!-- Add Audio Modal -->
+  <UModal v-model:open="showAddAudioModal" :class="{ width: 'max-w-3xl' }">
+    <template #header>
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+            Add Audio to Chapter {{ selectedChapterForAudio?.chapterNumber }}
+          </h3>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            {{ selectedChapterForAudio?.title }}
+          </p>
+        </div>
+        <UButton
+          icon="i-heroicons-x-mark"
+          variant="ghost"
+          size="sm"
+          @click="showAddAudioModal = false"
+        />
+      </div>
+    </template>
+    <template #body>
+      <UCard>
+        <UForm :state="audioForm" class="space-y-6" @submit="submitAudioForm">
+          <!-- Audio Configuration -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <UFormField label="Audio Name" required>
+              <UInput
+                v-model="audioForm.audioName"
+                placeholder="Enter audio name..."
+                size="lg"
+              />
+            </UFormField>
+
+            <UFormField label="Audio Format" required>
+              <USelectMenu
+                v-model="audioForm.audioFileType"
+                :options="audioFileTypeOptions"
+                placeholder="Select format..."
+                size="lg"
+              />
+            </UFormField>
+          </div>
+
+          <!-- Voice Selection -->
+          <UFormField label="Voice Selection" required>
+            <!-- <USelectMenu
+                v-model="audioForm.selectedVoice"
+                :options="voiceOptions"
+                placeholder="Choose voice..."
+                option-attribute="label"
+                value-attribute="value"
+                size="lg"
+              >
+                <template #item="{ option }">
+                  <div class="flex items-center justify-between w-full">
+                    <div class="flex items-center space-x-3">
+                      <div
+                        :class="[
+                          'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium',
+                          option.gender === 'MALE' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                          : option.gender === 'FEMALE' ? 'bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300'
+                            : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                        ]"
+                      >
+                        {{ option.gender === 'MALE' ? 'M' : option.gender === 'FEMALE' ? 'F' : 'N' }}
+                      </div>
+                      <div>
+                        <p class="font-medium">
+                          {{ option.name }}
+                        </p>
+                        <p class="text-xs text-slate-500">
+                          {{ option.language }}
+                        </p>
+                      </div>
+                    </div>
+                    <UBadge
+                      :label="option.gender"
+                      :color="option.gender === 'MALE' ? 'blue' : option.gender === 'FEMALE' ? 'pink' : 'gray'"
+                      size="xs"
+                      variant="soft"
+                    />
+                  </div>
+                </template>
+              </USelectMenu> -->
+          </UFormField>
+
+          <!-- Processing Options -->
+          <div class="bg-slate-50 dark:bg-slate-800 rounded-xl p-6">
+            <h4 class="font-medium text-slate-900 dark:text-white mb-4">
+              Processing Options
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <UCheckbox
+                v-model="audioForm.generateSubtitle"
+                label="Auto-generate subtitles (VTT)"
+                class="flex items-center space-x-3"
+              />
+              <UCheckbox
+                v-model="audioForm.enableSync"
+                label="Sync with chapter content"
+                class="flex items-center space-x-3"
+              />
+              <UCheckbox
+                v-model="audioForm.highQuality"
+                label="High quality (slower processing)"
+                class="flex items-center space-x-3"
+              />
+              <UCheckbox
+                v-model="audioForm.enableEnhancement"
+                label="Audio enhancement"
+                class="flex items-center space-x-3"
+              />
+            </div>
+          </div>
+
+          <!-- Advanced Settings -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <UFormField label="Speech Speed">
+              <div class="space-y-2">
+                <USlider
+                  v-model="audioForm.speed"
+                  :min="0.5"
+                  :max="2"
+                  :step="0.1"
+                />
+                <div class="flex justify-between text-xs text-slate-500">
+                  <span>0.5x</span>
+                  <span class="font-medium">{{ audioForm.speed }}x</span>
+                  <span>2.0x</span>
+                </div>
+              </div>
+            </UFormField>
+
+            <UFormField label="Volume Level">
+              <div class="space-y-2">
+                <USlider
+                  v-model="audioForm.volume"
+                  :min="0"
+                  :max="100"
+                  :step="5"
+                />
+                <div class="flex justify-between text-xs text-slate-500">
+                  <span>0%</span>
+                  <span class="font-medium">{{ audioForm.volume }}%</span>
+                  <span>100%</span>
+                </div>
+              </div>
+            </UFormField>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex justify-end space-x-3 pt-6 border-t border-slate-200 dark:border-slate-700">
+            <UButton
+              variant="outline"
+              size="lg"
+              @click="showAddAudioModal = false"
+            >
+              Cancel
+            </UButton>
+            <UButton
+              type="submit"
+              :loading="submittingAudio"
+              icon="i-heroicons-plus"
+              size="lg"
+              class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+            >
+              Create Audio
+            </UButton>
+          </div>
+        </UForm>
+      </UCard>
+    </template>
+  </UModal>
+</template>
+
+<script setup lang="ts">
+import type { TableColumn } from '@nuxt/ui'
+import type { Chapter } from '@/types/chapter'
+// const { getStatusLabel, getStatusColor, getStatusIcon } = useStatus()
+
+interface Audio {
+  _id: string
+  audioName: string
+  audioFileUrl: string
+  audioFileType: string
+  duration: number
+  size: number
+  status: 'pending' | 'processed' | 'error'
+  voice: {
+    name: string
+    ssmlGender: string
+    languageCodes: string[]
+  }
+  subtitle?: {
+    url: string
+    language: string
+    format: string
+  } | null
+  chapterId: string
+}
+
+interface AudioForm {
+  audioName: string
+  selectedVoice: string | null
+  audioFileType: string
+  generateSubtitle: boolean
+  enableSync: boolean
+  highQuality: boolean
+  enableEnhancement: boolean
+  speed: number
+  volume: number
+}
+
+// Audio form
+const audioForm = ref<AudioForm>({
+  audioName: '',
+  selectedVoice: null,
+  audioFileType: 'MP3',
+  generateSubtitle: true,
+  enableSync: true,
+  highQuality: false,
+  enableEnhancement: false,
+  speed: 1.0,
+  volume: 80
+})
+const selectedChapterForAudio = ref<Chapter | null>(null)
+const selectedAudioForModal = ref<Audio | null>(null)
+
+const audioSearchQuery = ref<string>('')
+const currentPage = ref<number>(1)
+const pageSize = ref<number>(10)
+const selectedAudioStatus = ref<string>('')
+const loadingAudios = ref<boolean>(false)
+const submittingAudio = ref<boolean>(false)
+const showAudioModal = ref<boolean>(false)
+const showAddAudioModal = ref<boolean>(false)
+
+const audioColumns: TableColumn<Audio>[] = [
+  { id: 'story', label: 'Story/Chapter' },
+  { id: 'audioName', label: 'Audio Name' },
+  { id: 'status', label: 'Status' },
+  { id: 'duration', label: 'Duration' },
+  { id: 'size', label: 'Size' },
+  { id: 'actions', label: 'Actions' }
+]
+const audioStats = computed(() => [
+  {
+    key: 'total',
+    label: 'Total Audios',
+    value: totalAudios.value,
+    icon: 'i-heroicons-speaker-wave',
+    bgColor: 'bg-blue-100 dark:bg-blue-900/30',
+    iconColor: 'text-blue-600',
+    progressColor: 'bg-blue-500',
+    progress: 100,
+    trend: 'up',
+    change: 12
+  },
+  {
+    key: 'processed',
+    label: 'Processed',
+    value: processedAudios.value,
+    icon: 'i-heroicons-check-circle',
+    bgColor: 'bg-emerald-100 dark:bg-emerald-900/30',
+    iconColor: 'text-emerald-600',
+    progressColor: 'bg-emerald-500',
+    progress: (processedAudios.value / totalAudios.value) * 100,
+    trend: 'up',
+    change: 8
+  },
+  {
+    key: 'pending',
+    label: 'Processing',
+    value: pendingAudios.value,
+    icon: 'i-heroicons-clock',
+    bgColor: 'bg-yellow-100 dark:bg-yellow-900/30',
+    iconColor: 'text-yellow-600',
+    progressColor: 'bg-yellow-500',
+    progress: (pendingAudios.value / totalAudios.value) * 100,
+    trend: 'down',
+    change: 5
+  },
+  {
+    key: 'error',
+    label: 'Errors',
+    value: errorAudios.value,
+    icon: 'i-heroicons-exclamation-triangle',
+    bgColor: 'bg-red-100 dark:bg-red-900/30',
+    iconColor: 'text-red-600',
+    progressColor: 'bg-red-500',
+    progress: (errorAudios.value / totalAudios.value) * 100,
+    trend: 'down',
+    change: 15
+  }
+])
+
+const audioStatusBreakdown = computed(() => [
+  {
+    key: 'processed',
+    label: 'Processed',
+    count: processedAudios.value,
+    percentage: (processedAudios.value / totalAudios.value) * 100,
+    color: 'bg-emerald-500'
+  },
+  {
+    key: 'pending',
+    label: 'Processing',
+    count: pendingAudios.value,
+    percentage: (pendingAudios.value / totalAudios.value) * 100,
+    color: 'bg-yellow-500'
+  },
+  {
+    key: 'error',
+    label: 'Error',
+    count: errorAudios.value,
+    percentage: (errorAudios.value / totalAudios.value) * 100,
+    color: 'bg-red-500'
+  }
+])
+
+const audioStatusOptions = [
+  { label: 'All Status', value: '' },
+  { label: 'Processing', value: 'pending' },
+  { label: 'Completed', value: 'processed' },
+  { label: 'Error', value: 'error' }
+]
+
+const audioFileTypeOptions = [
+  { label: 'MP3 (Recommended)', value: 'MP3' },
+  { label: 'WAV (High Quality)', value: 'WAV' },
+  { label: 'OGG (Web Optimized)', value: 'OGG' }
+]
+
+const voiceOptions = [
+  {
+    label: 'Minh Đức (Male, Deep)',
+    value: 'minh-duc',
+    name: 'Minh Đức',
+    gender: 'MALE',
+    language: 'Vietnamese'
+  },
+  {
+    label: 'Thu Hà (Female, Sweet)',
+    value: 'thu-ha',
+    name: 'Thu Hà',
+    gender: 'FEMALE',
+    language: 'Vietnamese'
+  },
+  {
+    label: 'Hoàng Nam (Neutral, Clear)',
+    value: 'hoang-nam',
+    name: 'Hoàng Nam',
+    gender: 'NEUTRAL',
+    language: 'Vietnamese'
+  }
+]
+
+// Utility functions
+const getStatusDotColor = (status: string): string => {
+  const colorMap: Record<string, string> = {
+    draft: 'bg-gray-400',
+    pending: 'bg-yellow-400',
+    editing: 'bg-blue-400',
+    warning: 'bg-orange-400',
+    approved: 'bg-green-400',
+    rejected: 'bg-red-400',
+    ongoing: 'bg-blue-400',
+    completed: 'bg-green-400',
+    hiatus: 'bg-orange-400',
+    processed: 'bg-green-400',
+    error: 'bg-red-400'
+  }
+  return colorMap[status] || 'bg-gray-400'
+}
+
+const getAudioStatusLabel = (status: string): string => {
+  const statusMap: Record<string, string> = {
+    pending: 'Processing',
+    processed: 'Completed',
+    error: 'Error'
+  }
+  return statusMap[status] || status
+}
+
+const getAudioStatusColor = (status: string): string => {
+  const colorMap: Record<string, string> = {
+    pending: 'yellow',
+    processed: 'green',
+    error: 'red'
+  }
+  return colorMap[status] || 'gray'
+}
+
+const getAudioStatusColor = (status: string): string => {
+  const colorMap: Record<string, string> = {
+    pending: 'yellow',
+    processed: 'green',
+    error: 'red'
+  }
+  return colorMap[status] || 'gray'
+}
+
+const getAudioStatusIcon = (status: string): string => {
+  const iconMap: Record<string, string> = {
+    pending: 'i-heroicons-clock',
+    processed: 'i-heroicons-check-circle',
+    error: 'i-heroicons-exclamation-triangle'
+  }
+  return iconMap[status] || 'i-heroicons-speaker-wave'
+}
+
+const getAudioStatusBgColor = (status: string): string => {
+  const colorMap: Record<string, string> = {
+    pending: 'bg-yellow-100 dark:bg-yellow-900/30',
+    processed: 'bg-green-100 dark:bg-green-900/30',
+    error: 'bg-red-100 dark:bg-red-900/30'
+  }
+  return colorMap[status] || 'bg-gray-100 dark:bg-gray-800'
+}
+
+const getAudioStatusIconColor = (status: string): string => {
+  const colorMap: Record<string, string> = {
+    pending: 'text-yellow-600',
+    processed: 'text-green-600',
+    error: 'text-red-600'
+  }
+  return colorMap[status] || 'text-gray-600'
+}
+
+const getAudioActions = (audio: Audio) => {
+  const actions = []
+  if (audio.status === 'processed') {
+    actions.push([{
+      label: 'Play Audio',
+      icon: 'i-heroicons-play',
+      click: () => playAudio(audio._id)
+    }])
+    actions.push([{
+      label: 'Download',
+      icon: 'i-heroicons-arrow-down-tray',
+      click: () => downloadAudio(audio.audioFileUrl, audio.audioName)
+    }])
+  }
+  if (audio.status === 'error') {
+    actions.push([{
+      label: 'Retry',
+      icon: 'i-heroicons-arrow-path',
+      click: () => retryAudioProcessing(audio._id)
+    }])
+  }
+  actions.push([{
+    label: 'View Details',
+    icon: 'i-heroicons-eye',
+    click: () => openAudioModal(audio)
+  }])
+  actions.push([{
+    label: 'Delete',
+    icon: 'i-heroicons-trash',
+    click: () => deleteAudio(audio._id)
+  }])
+  return actions
+}
+const getNovelById = (novelId: string): Novel | undefined => {
+  return novels.value.find(novel => novel._id === novelId)
+}
+
+const getChapterById = (chapterId: string): Chapter | undefined => {
+  return chapters.value.find(chapter => chapter._id === chapterId)
+}
+const filteredAudios = computed(() => {
+  let filtered = [...audios.value]
+
+  if (audioSearchQuery.value) {
+    const query = audioSearchQuery.value.toLowerCase()
+    filtered = filtered.filter(audio =>
+      audio.audioName.toLowerCase().includes(query)
+    )
+  }
+
+  if (selectedAudioStatus.value) {
+    filtered = filtered.filter(audio => audio.status === selectedAudioStatus.value)
+  }
+
+  return filtered
+})
+
+const paginatedAudios = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredAudios.value.slice(start, end)
+})
+const formatDuration = (seconds: number): string => {
+  if (!seconds) return '0:00'
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
+}
+
+const formatFileSize = (bytes: number): string => {
+  if (!bytes) return '0 B'
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`
+}
+
+const formatNumber = (num: number): string => {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M'
+  } else if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K'
+  }
+  return num.toString()
+}
+const exportAudioReport = (): void => {
+  console.log('Exporting audio report...')
+}
+
+const playAudio = (audioId: string): void => {
+  const audioElement = audioRefs.value[audioId]
+  if (audioElement) {
+    audioElement.play()
+  }
+}
+
+const openAudioModal = (audio: Audio): void => {
+  selectedAudioForModal.value = audio
+  showAudioModal.value = true
+}
+
+const addAudioToChapter = (chapter: Chapter): void => {
+  selectedChapterForAudio.value = chapter
+  audioForm.value = {
+    audioName: `${chapter.title} - New Audio`,
+    selectedVoice: null,
+    audioFileType: 'MP3',
+    generateSubtitle: true,
+    enableSync: true,
+    highQuality: false,
+    enableEnhancement: false,
+    speed: 1.0,
+    volume: 80
+  }
+  showAddAudioModal.value = true
+}
+
+const submitAudioForm = async (): Promise<void> => {
+  submittingAudio.value = true
+  try {
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    const newAudio: Audio = {
+      _id: `audio_${Date.now()}`,
+      audioName: audioForm.value.audioName,
+      audioFileUrl: '',
+      audioFileType: audioForm.value.audioFileType,
+      duration: 0,
+      size: 0,
+      status: 'pending',
+      voice: (() => {
+        const selected = voiceOptions.find(v => v.value === audioForm.value.selectedVoice) || voiceOptions[0]
+        return {
+          name: selected.name,
+          ssmlGender: selected.gender,
+          languageCodes: [selected.language === 'Vietnamese' ? 'vi-VN' : 'en-US']
+        }
+      })(),
+      subtitle: audioForm.value.generateSubtitle
+        ? {
+            url: '',
+            language: 'vi-VN',
+            format: 'VTT'
+          }
+        : null,
+      chapterId: selectedChapterForAudio.value!._id
+    }
+    audios.value.push(newAudio)
+    showAddAudioModal.value = false
+  } catch (error) {
+    console.error('Failed to add audio:', error)
+  } finally {
+    submittingAudio.value = false
+  }
+}
+
+</script>

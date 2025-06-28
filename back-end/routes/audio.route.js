@@ -9,6 +9,83 @@ const logger = pino();
 /**
  * POST /generate - Thêm job tạo audio và VTT vào hàng đợi
  */
+import { generateDefaultAudio, generateCustomAudio } from '../utils/textToSpeech/generate.js';
+import { syncVietnameseVoices } from '../utils/textToSpeech/voiceCache.js';
+import Chapter from '../models/chapter.model.js';
+import Novel from '../models/novel.model.js';
+
+router.post('/default/:chapterId', async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+    const chapter = await Chapter.findById(chapterId);
+    if (!chapter) return res.status(404).json({ error: 'Chapter not found' });
+    const novel = await Novel.findById(chapter.novelId);
+    if (!novel) return res.status(404).json({ error: 'Novel not found' });
+    const testContent = "Đây là một thử nghiệm âm thanh ngắn. Câu 2 thử nghiệm âm thanh ngắn.";
+    // chapter.content,
+    // console.log("Testing audio generation: ", testContent);
+    const { audioUrl, subtitleFileUrl, voiceConfig, duration, size } = await generateDefaultAudio(
+      chapter.content,
+      novel.title, 
+      chapter.title,
+      chapterId
+    );
+
+    res.status(201).json({
+      audioUrl,
+      subtitleFileUrl,
+      voiceConfig,
+      duration,
+      size,
+    });
+  } catch (error) {
+    console.error(`Error in default audio generation: ${error.message}`);
+    res.status(500).json({ error: 'Failed to generate default audio' });
+  }
+});
+
+router.post('/custom/:chapterId', async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+    const { voiceConfig, customConfig } = req.body;
+    const chapter = await Chapter.findById(chapterId);
+    if (!chapter) return res.status(404).json({ error: 'Chapter not found' });
+    const novel = await Novel.findById(chapter.novelId);
+    if (!novel) return res.status(404).json({ error: 'Novel not found' });
+    if (!voiceConfig || !voiceConfig.name) return res.status(400).json({ error: 'Voice config required' });
+
+    const { audioFileUrl, subtitleFileUrl, duration, size } = await generateCustomAudio(
+      chapter.content,
+      novel.title,
+      chapter.title,
+      chapterId,
+      voiceConfig,
+      customConfig || {}
+    );
+
+    res.status(201).json({
+      audioFileUrl,
+      subtitleFileUrl,
+      voiceConfig,
+      duration,
+      size,
+    });
+  } catch (error) {
+    console.error(`Error in custom audio generation: ${error.message}`);
+    res.status(500).json({ error: 'Failed to generate custom audio' });
+  }
+});
+
+router.get('/sync-voices', async (req, res) => {
+  try {
+    const voices = await syncVietnameseVoices();
+    res.status(200).json({ voices });
+  } catch (error) {
+    console.error(`Error syncing voices: ${error.message}`);
+    res.status(500).json({ error: 'Failed to sync voices' });
+  }
+});
+
 router.post(
   '/generate',
   [

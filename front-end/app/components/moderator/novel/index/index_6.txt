@@ -1,0 +1,1850 @@
+<template>
+  <div v-if="pending" class="min-h-screen flex items-center justify-center">
+    <USkeleton class="h-8 w-32" />
+  </div>
+
+  <div v-else-if="error" class="min-h-screen flex flex-col items-center justify-center gap-4">
+    <UIcon name="i-lucide-alert-circle" class="w-12 h-12 text-red-500" />
+    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+      Đã xảy ra lỗi
+    </h2>
+    <p class="text-gray-600 dark:text-gray-400">
+      {{ error }}
+    </p>
+    <UButton icon="i-lucide-refresh-cw" @click="refresh">
+      Thử lại
+    </UButton>
+  </div>
+  <div v-else-if="novelData" class="bg-gray-50 dark:bg-gray-900">
+    <header class="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+      <div class="flex items-center justify-between px-4 py-4 sm:px-6">
+        <div class="flex items-center gap-4">
+          <UButton
+            icon="i-lucide-arrow-left"
+            variant="ghost"
+            size="sm"
+            @click="onClose()"
+          />
+          <div class="min-w-0 flex-1">
+            <h1 class="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white truncate">
+              {{ novelData.title }}
+            </h1>
+            <p class="text-sm text-gray-600 dark:text-gray-400 truncate">
+              <span>Người đăng: {{ createdBy.username }} • Chương số: {{ currentChapter?.chapterNumber }}
+                - {{ currentChapter?.title }} </span>
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 sm:gap-3">
+          <UButton
+            v-if="confirmReviewEnabled"
+            icon="i-lucide-check"
+            color="success"
+            variant="solid"
+            size="sm"
+            @click="openReviewConfirmationModal"
+          >
+            Duyệt bản
+          </UButton>
+          <UBadge
+            :color="getStatusColor(reviewStatus)"
+            :icon="getStatusIcon(reviewStatus)"
+            variant="subtle"
+            size="sm"
+            class="hidden sm:inline-flex"
+          >
+            {{ getStatusLabel(reviewStatus) }}
+          </UBadge>
+          <div class="flex items-center gap-2 px-2 py-1 sm:px-3 sm:py-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
+            <UIcon name="i-lucide-clock" class="w-4 h-4" />
+            <span class="text-xs sm:text-sm font-mono">{{ formatTime(reviewTime) }}</span>
+          </div>
+          <UButton
+            icon="i-lucide-save"
+            variant="outline"
+            size="xs"
+            class="hidden sm:inline-flex"
+            @click="saveDraft"
+          >
+            Lưu nháp
+          </UButton>
+          <UDropdownMenu :items="headerActions">
+            <UButton icon="i-lucide-more-horizontal" variant="ghost" size="sm" />
+          </UDropdownMenu>
+        </div>
+      </div>
+      <div class="h-1 bg-gray-200 dark:bg-gray-800">
+        <div class="h-full bg-primary-500 transition-all duration-300" :style="{ width: `${reviewProgress}%` }" />
+      </div>
+    </header>
+    <div class="flex flex-col lg:flex-row max-h-[calc(100vh-105px)]">
+      <div class="flex-1 flex flex-col lg:flex-row max-w-full overflow-y-auto mx-auto">
+        <ModeratorNovelChapterList
+          :chapters="chapters"
+          :current-chapter="currentChapter"
+          :open-sidebar="sidebarOpen"
+          @update:selected-chapter="selectChapter"
+          @update:open-sidebar="(value) => sidebarOpen = value"
+        />
+        <div class="flex-[4] flex flex-col max-w-[100%] overflow-y-auto">
+          <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+            <div class="flex items-center gap-2 sm:gap-4">
+              <UButton
+                icon="i-lucide-menu"
+                variant="ghost"
+                size="sm"
+                @click="sidebarOpen = true"
+              />
+            </div>
+            <div class="flex items-center gap-2">
+              <UButtonGroup size="xs" class="hidden sm:flex">
+                <UButton :variant="viewMode === 'original' ? 'solid' : 'outline'" @click="viewMode = 'original'">
+                  Gốc
+                </UButton>
+                <UButton :variant="viewMode === 'annotated' ? 'solid' : 'outline'" @click="viewMode = 'annotated'">
+                  Có chú thích
+                </UButton>
+              </UButtonGroup>
+              <UButton
+                icon="i-lucide-search"
+                variant="ghost"
+                size="sm"
+                @click="showSearchModal = true"
+              />
+              <UButton
+                icon="i-lucide-type"
+                variant="ghost"
+                size="sm"
+                @click="showTextTools = !showTextTools"
+              />
+            </div>
+          </div>
+
+          <div v-if="showTextTools" class="p-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <div class="flex flex-wrap items-center gap-4">
+              <div class="flex items-center gap-2">
+                <label class="text-sm font-medium">Cỡ chữ:</label>
+                <USlider
+                  v-model="fontSize"
+                  :min="12"
+                  :max="20"
+                  :step="1"
+                  class="w-20"
+                />
+                <span class="text-sm">{{ fontSize }}px</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <label class="text-sm font-medium">Khoảng cách:</label>
+                <USelectMenu
+                  v-model="lineHeight"
+                  :options="[{ label: '1.4', value: '1.4' }, { label: '1.6', value: '1.6' }, { label: '1.8', value: '1.8' }, { label: '2.0', value: '2.0' }]"
+                  size="sm"
+                />
+              </div>
+              <UButton
+                icon="i-lucide-highlight"
+                variant="ghost"
+                size="sm"
+                :class="highlightMode ? 'text-yellow-600' : ''"
+                @click="highlightMode = !highlightMode"
+              >
+                Highlight
+              </UButton>
+            </div>
+          </div>
+
+          <div class="overflow-y-scroll flex-1 p-4 sm:p-6 bg-white dark:bg-gray-900">
+            <article class="prose prose-sm sm:prose-lg dark:prose-invert max-w-none" :style="{ fontSize: `${fontSize}px`, lineHeight }">
+              <div v-if="viewMode === 'original'" class="content-original">
+                <div class="prose dark:prose-invert max-w-none">
+                  <p
+                    v-for="(paragraph, index) in contentParagraphs"
+                    :key="index"
+                    :class="{ 'bg-yellow-100 dark:bg-yellow-900': isHighlighted(index, paragraph) }"
+                  >
+                    {{ paragraph }}
+                  </p>
+                </div>
+              </div>
+              <div v-else-if="viewMode === 'annotated'" class="content-annotated">
+                <div class="prose dark:prose-invert max-w-none">
+                  <div v-for="(line, index) in annotatedContent" :key="index">
+                    <p
+                      :class="{
+                        'highlight-low': line.type === 'issue' && line.issue.severity === 'low',
+                        'highlight-medium': line.type === 'issue' && line.issue.severity === 'medium',
+                        'highlight-high': line.type === 'issue' && line.issue.severity === 'high',
+                        'highlight-critical': line.type === 'issue' && line.issue.severity === 'critical',
+                      }"
+                      @click="handleLineClick(index, line.text)"
+                    >
+                      <span v-if="line.type === 'issue'">
+                        {{ line.text }}
+                      </span>
+                      <span v-else>{{ line.text }}</span>
+                    </p>
+                    <div v-if="line.type === 'issue' && line.issue" class="issue-note p-2 border-l-4 border-red-500 bg-red-50 dark:bg-red-900/10 text-xs text-gray-600 dark:text-gray-400 mt-1 mb-3">
+                      <strong>{{ line.issue.title }}</strong> (Mức độ: {{ getSeverityLabel(line.issue.severity) }})
+                      <p>{{ line.issue.description }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              </article>
+          </div>
+        </div>
+
+        <div class="flex-[3] flex flex-col max-w-[100%] overflow-y-auto">
+          <UCard variant="subtle" class="m-2 bg-transparent border-transparent">
+            <template #header>
+              <h2 class="text-lg font-semibold">
+                {{ currentChapter?.title || 'Chưa chọn chương' }}
+              </h2>
+            </template>
+            <div class="space-y-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span class="font-medium">Trạng thái:</span>
+                  <UBadge
+                    :color="getStatusColor(currentChapter?.status as statusPublish)"
+                    :icon="getStatusIcon(currentChapter?.status as statusPublish)"
+                    variant="subtle"
+                    class="ml-2"
+                  >
+                    {{ getStatusLabel(currentChapter?.status as statusPublish) }}
+                  </UBadge>
+                </div>
+                <div>
+                  <span class="font-medium">Số từ:</span>
+                  {{ currentChapter?.wordCount || 0 }}
+                </div>
+                <div>
+                  <span class="font-medium">Ngày tạo:</span>
+                  {{ formatDate(currentChapter?.createdAt) }}
+                </div>
+                <div v-if="currentChapter?.violation?.count?.total">
+                  <span class="font-medium">Vi phạm:</span>
+                  <UBadge color="error" variant="subtle" class="ml-2">
+                    {{ currentChapter.violation.count.total }} vấn đề
+                  </UBadge>
+                </div>
+              </div>
+            </div>
+          </UCard>
+          <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+            <h3 class="font-semibold text-gray-900 dark:text-white">
+              Công cụ kiểm duyệt
+            </h3>
+          </div>
+          <UTabs :items="toolTabs" variant="link" class="w-full">
+            <template #issues>
+              <div class="p-4 space-y-4">
+                <div class="flex items-center justify-between mb-3">
+                  <h3>Vi phạm do AI phát hiện</h3>
+                  <UButton
+                    icon="i-lucide-bot"
+                    :loading="autoModerationLoading"
+                    color="primary"
+                    size="sm"
+                    variant="outline"
+                    class="mb-2"
+                    @click="handleAutoModeration"
+                  >
+                    Chạy kiểm duyệt tự động
+                  </UButton>
+                </div>
+                <div v-if="aiIssues.length">
+                  <div v-for="issue in aiIssues" :key="issue._id">
+                    <p><strong>{{ issue.title }}</strong> (Mức độ: {{ issue.severity }}, Dòng: {{ issue.line }})</p>
+                    <p>{{ issue.description }}</p>
+                    <button @click="removeIssue(issue._id)">
+                      Xóa
+                    </button>
+                  </div>
+                </div>
+                <p v-else class="w-full italic text-center">
+                  Không có vi phạm do AI.
+                </p>
+                <div class="flex items-center justify-between mb-3">
+                  <h3>Vi phạm do kiểm duyệt viên</h3>
+                  <UButton
+                    icon="i-lucide-plus"
+                    size="sm"
+                    variant="outline"
+                    @click="showAddIssueModal = true"
+                  >
+                    Thêm vấn đề
+                  </UButton>
+                </div>
+                <div v-if="manualIssues.length">
+                  <div v-for="issue in manualIssues" :key="issue._id">
+                    <p><strong>{{ issue.title }}</strong> (Mức độ: {{ issue.severity }}, Dòng: {{ issue.line }})</p>
+                    <p>{{ issue.description }}</p>
+                    <button @click="removeIssue(issue._id)">
+                      Xóa
+                    </button>
+                  </div>
+                </div>
+                <p v-else class="w-full italic text-center">
+                  Không có vi phạm thủ công.
+                </p>
+              </div>
+              <div class="space-y-2">
+                <div
+                  v-for="issue in detectedIssues"
+                  :key="issue._id"
+                  class="p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                  :class="getIssueColor(issue.severity)"
+                  @click="highlightIssue(issue)"
+                >
+                  <div class="flex items-start gap-3">
+                    <UIcon :name="getIssueIcon(issue.type)" :class="getIssueIconColor(issue.severity)" class="w-4 h-4 mt-0.5" />
+                    <div class="flex-1">
+                      <div class="flex items-center gap-2 mb-1">
+                        <span class="text-sm font-medium">{{ issue.title }}</span>
+                        <UBadge :color="getSeverityColor(issue.severity)" variant="subtle" size="xs">
+                          {{ getSeverityLabel(issue.severity) }}
+                        </UBadge>
+                      </div>
+                      <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                        {{ issue.description }}
+                      </p>
+                      <div class="text-xs text-gray-500">
+                        Dòng {{ issue.line }} • {{ issue.position }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template #guidelines>
+              <div class="p-4 space-y-4">
+                <h4 class="font-medium text-gray-900 dark:text-white">
+                  Checklist kiểm duyệt
+                </h4>
+                <div
+                  v-for="guideline in guidelines"
+                  :key="guideline.id"
+                  class="rounded-lg border p-3"
+                  :class="guideline.hasIssues ? 'border-red-300 dark:border-red-700' : 'border-green-300 dark:border-green-700'"
+                >
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <UCheckbox
+                        v-model="guideline.checked"
+                        :aria-label="`Kiểm tra hướng dẫn: ${guideline.title}`"
+                        @change="toggleGuideline(guideline)"
+                      />
+                      <span class="font-medium">{{ guideline.title }}</span>
+                    </div>
+                    <UBadge v-if="guideline.issues.length" color="red" variant="subtle">
+                      {{ guideline.issues.length }} vấn đề
+                    </UBadge>
+                  </div>
+                  <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    {{ guideline.description }}
+                  </p>
+                  <div v-if="guideline.checked === false" class="mt-3 space-y-2">
+                    <div v-for="(issueOption, issueIndex) in guideline.issueOptions" :key="issueIndex" class="flex items-start gap-2">
+                      <UCheckbox
+                        v-model="issueOption.selected"
+                        @change="handleGuidelineIssueSelection(guideline, issueOption)"
+                      />
+                      <div class="flex-1">
+                        <span class="text-sm font-medium">{{ issueOption.description }}</span>
+                        <UBadge :color="getSeverityColor(issueOption.severity)" size="xs" class="ml-2">
+                          {{ getSeverityLabel(issueOption.severity) }}
+                        </UBadge>
+                        <div v-if="issueOption.selected" class="mt-2 p-3 border rounded-md border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                          <UFormGroup label="Dòng vi phạm (tùy chọn)" class="mb-2">
+                            <UInput v-model="issueOption.line" type="number" placeholder="Nhập số dòng" />
+                          </UFormGroup>
+                          <UFormGroup label="Mô tả chi tiết (tùy chọn)" class="mb-2">
+                            <UTextarea v-model="issueOption.note" :rows="2" placeholder="Ghi chú thêm về vi phạm" />
+                          </UFormGroup>
+                          <UButton size="sm" color="primary" @click="addGuidelineIssue(guideline, issueOption)">
+                            Thêm vấn đề
+                          </UButton>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="guideline.issues.length" class="mt-3 space-y-1">
+                    <div
+                      v-for="issue in guideline.issues"
+                      :key="issue._id"
+                      class="flex items-center justify-between p-2 rounded-md bg-red-50 dark:bg-red-900/20"
+                    >
+                      <span class="text-xs text-gray-700 dark:text-gray-300">
+                        Dòng {{ issue.line }}: {{ issue.description }}
+                      </span>
+                      <UButton icon="i-lucide-trash" size="xs" color="red" variant="ghost" @click="removeIssue(issue._id)" />
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-6 p-4 dark:bg-gray-800 rounded-lg">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">Điểm tuân thủ</span>
+                    <span class="text-lg font-bold text-green-600">{{ complianceScore }}%</span>
+                  </div>
+                  <UProgress v-model="complianceScore" color="primary" />
+                </div>
+              </div>
+            </template>
+
+            <template #analytics>
+              <div class="p-4 space-y-4">
+                <div>
+                  <h4 class="font-medium text-gray-900 dark:text-white mb-3">
+                    Phân tích nội dung
+                  </h4>
+                  <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm">Độ dài trung bình câu</span>
+                      <span class="text-sm font-medium">{{ analytics.avgSentenceLength }} từ</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm">Độ khó đọc</span>
+                      <UBadge :color="getReadabilityColor(analytics.readabilityScore)" variant="subtle">
+                        {{ analytics.readabilityLevel }}
+                      </UBadge>
+                    </div>
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm">Từ lặp lại</span>
+                      <span class="text-sm font-medium">{{ analytics.repetitiveWords }}%</span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h4 class="font-medium text-gray-900 dark:text-white mb-3">
+                    Từ khóa phổ biến
+                  </h4>
+                  <div class="space-y-2">
+                    <div v-for="keyword in analytics.topKeywords" :key="keyword.word" class="flex items-center justify-between">
+                      <span class="text-sm">{{ keyword.word }}</span>
+                      <div class="flex items-center gap-2">
+                        <div class="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-1">
+                          <div class="bg-blue-500 h-1 rounded-full" :style="{ width: `${(keyword.count / analytics.maxKeywordCount) * 100}%` }" />
+                        </div>
+                        <span class="text-xs text-gray-500 w-6">{{ keyword.count }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h4 class="font-medium text-gray-900 dark:text-white mb-3">
+                    Cảnh báo nội dung
+                  </h4>
+                  <div class="space-y-2">
+                    <div
+                      v-for="flag in contentFlags"
+                      :key="flag.type"
+                      class="flex items-center justify-between p-2 rounded"
+                      :class="flag.detected ? 'bg-red-50 dark:bg-red-900/20' : 'bg-gray-50 dark:bg-gray-800'"
+                    >
+                      <div class="flex items-center gap-2">
+                        <UIcon
+                          :name="flag.detected ? 'i-lucide-alert-triangle' : 'i-lucide-check'"
+                          :class="flag.detected ? 'text-red-500' : 'text-green-500'"
+                          class="w-4 h-4"
+                        />
+                        <span class="text-sm">{{ flag.label }}</span>
+                      </div>
+                      <span class="text-xs text-gray-500">{{ flag.detected ? flag.count + ' lần' : 'Sạch' }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </UTabs>
+
+          <div class="p-4 border-t border-gray-200 dark:border-gray-800 space-y-3">
+            <div class="grid grid-cols-2 gap-2">
+              <UButton
+                color="success"
+                variant="outline"
+                block
+                :disabled="hasBlockingIssues"
+                @click="showActionModal('approve')"
+              >
+                <UIcon name="i-lucide-check" class="w-4 h-4 mr-2" />
+                Duyệt
+              </UButton>
+              <UButton
+                color="error"
+                variant="outline"
+                block
+                @click="showActionModal('reject')"
+              >
+                <UIcon name="i-lucide-x" class="w-4 h-4 mr-2" />
+                Từ chối
+              </UButton>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <UButton
+                color="secondary"
+                variant="outline"
+                block
+                @click="showActionModal('edit')"
+              >
+                <UIcon name="i-lucide-edit" class="w-4 h-4 mr-2" />
+                Yêu cầu sửa
+              </UButton>
+              <UButton
+                color="warning"
+                variant="outline"
+                block
+                @click="showActionModal('warning')"
+              >
+                <UIcon name="i-lucide-arrow-up" class="w-4 h-4 mr-2" />
+                Cảnh cáo
+              </UButton>
+            </div>
+            <div class="text-xs text-gray-600 dark:text-gray-400 text-center pt-2">
+              {{ detectedIssues.length }} vấn đề
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <USlideover v-model:open="showSearchModal" title="Tìm kiếm" description="Tìm kiếm trong nội dung của các nhận xét">
+      <template #body>
+        <UCard>
+          <div class="space-y-4">
+            <div class="flex justify-between w-full">
+              <UInput v-model="searchQuery" placeholder="Nhập từ khóa cần tìm..." icon="i-lucide-search" />
+              <UButton @click="performSearch">
+                Tìm kiếm
+              </UButton>
+            </div>
+            <div class="flex flex-wrap gap-4">
+              <UCheckbox v-model="searchOptions.caseSensitive" label="Phân biệt hoa thường" />
+              <UCheckbox v-model="searchOptions.wholeWord" label="Toàn bộ từ" />
+              <UCheckbox v-model="searchOptions.regex" label="Regex" />
+            </div>
+            <div v-if="searchResults.length > 0" class="max-h-60 overflow-y-auto">
+              <div class="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Tìm thấy {{ searchResults.length }} kết quả
+              </div>
+              <div class="space-y-2">
+                <div
+                  v-for="(result, index) in searchResults"
+                  :key="index"
+                  class="p-2 border rounded cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                  @click="jumpToResult(result)"
+                >
+                  <div class="text-sm">
+                    {{ result.context }}
+                  </div>
+                  <div class="text-xs text-gray-500">
+                    Dòng {{ result.line }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </UCard>
+      </template>
+    </USlideover>
+
+    <UModal v-model:open="showActionModalOpen" :title="actionModalTitle" aria-describedby="undefined">
+      <template #body>
+        <UCard>
+          <div class="space-y-4">
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              {{ actionModalDescription }}
+            </p>
+            <div class="space-y-4">
+              <UFormField label="Ghi chú">
+                <UTextarea
+                  v-model="actionNote"
+                  class="w-full"
+                  placeholder="Nhập ghi chú (tùy chọn)"
+                  :rows="10"
+                />
+              </UFormField>
+              <div v-if="actionGuidelineNote" class="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                <p class="text-sm font-medium">
+                  Hướng dẫn vi phạm:
+                </p>
+                <p class="text-sm whitespace-pre-wrap w-full">
+                  {{ actionGuidelineNote }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </UCard>
+      </template>
+      <template #footer>
+        <div class="flex items-end gap-2">
+          <UButton variant="outline" @click="showActionModalOpen = false">
+            Hủy
+          </UButton>
+          <UButton :color="actionModalColor" variant="outline" @click="performAction">
+            {{ actionModalLabel }}
+          </UButton>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal v-model:open="showAddIssueModal" aria-describedby="undefined">
+      <template #header>
+        <h3 class="text-lg font-semibold">
+          Thêm vấn đề thủ công
+        </h3>
+      </template>
+      <template #body>
+        <UCard>
+          <UForm :state="newIssue" :schema="issueSchema" @submit="addManualIssue">
+            <div class="space-y-4 w-full">
+              <UFormGroup label="Loại vấn đề" name="type">
+                <USelect v-model="newIssue.type" :options="issueTypes" class="w-full" />
+              </UFormGroup>
+              <UFormGroup label="Mức độ nghiêm trọng" name="severity">
+                <USelect v-model="newIssue.severity" :options="severityOptions.map(opt => opt.value)" class="w-full" />
+              </UFormGroup>
+              <UFormGroup label="Tiêu đề" name="title">
+                <UInput v-model="newIssue.title" class="w-full" />
+              </UFormGroup>
+              <UFormGroup label="Mô tả" name="description">
+                <UTextarea v-model="newIssue.description" :rows="4" class="w-full" />
+              </UFormGroup>
+              <UFormGroup label="Dòng vi phạm" name="line">
+                <UInput v-model="newIssue.line" type="number" class="w-full" />
+              </UFormGroup>
+              <UFormGroup label="Vị trí (trong dòng)" name="position">
+                <UInput v-model="newIssue.position" type="text" placeholder="Ví dụ: 'từ 5 đến 10' hoặc 'đầu dòng'" />
+              </UFormGroup>
+            </div>
+            <div class="flex justify-end gap-2 mt-4">
+              <UButton variant="ghost" @click="showAddIssueModal = false">
+                Hủy
+              </UButton>
+              <UButton type="submit" :loading="actionLoading">
+                Thêm
+              </UButton>
+            </div>
+          </UForm>
+        </UCard>
+      </template>
+    </UModal>
+    <UModal v-model:open="reviewConfirmationModalOpen" title="Xác nhận hoàn tất kiểm duyệt" aria-describedby="undefined">
+      <template #body>
+        <UCard>
+          <div class="space-y-4">
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Vui lòng xác nhận rằng bạn đã hoàn tất việc kiểm duyệt chương này.
+              Hành động này sẽ cho phép cập nhật trạng thái chương.
+            </p>
+            <div v-if="!canConfirmReview" class="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+              <p class="text-sm text-yellow-700 dark:text-yellow-300">
+                Chưa đáp ứng các điều kiện:
+              </p>
+              <ul class="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-300">
+                <li v-if="detectedIssues.some(issue => !issue.resolved && issue.severity !== 'low')">
+                  Vẫn còn các vấn đề chưa được giải quyết
+                </li>
+                <li v-if="!guidelines.every(g => g.checked)">
+                  Chưa hoàn thành checklist hướng dẫn
+                </li>
+              </ul>
+            </div>
+          </div>
+        </UCard>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <UButton variant="outline" @click="reviewConfirmationModalOpen = false">
+            Hủy
+          </UButton>
+          <UButton color="success" :disabled="!canConfirmReview" @click="confirmReview">
+            Xác nhận
+          </UButton>
+        </div>
+      </template>
+    </UModal>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, watch, nextTick } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { z } from 'zod';
+
+// Mock Data - Replace with actual API calls
+interface Chapter {
+  _id: string;
+  novelId: string;
+  chapterNumber: number;
+  title: string;
+  content: string;
+  status: 'pending' | 'approved' | 'rejected' | 'draft' | 'under_review';
+  wordCount: number;
+  createdAt: string;
+  violation?: {
+    count: {
+      total: number;
+    };
+  };
+}
+
+interface User {
+  _id: string;
+  username: string;
+}
+
+type IssueType = 'grammar' | 'spelling' | 'content' | 'formatting' | 'other';
+type IssueSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+interface Issue {
+  _id: string;
+  type: IssueType;
+  severity: IssueSeverity;
+  title: string;
+  description: string;
+  line: number;
+  position?: string; // e.g., "word X", "phrase Y", "start of line"
+  resolved: boolean;
+  isManual: boolean; // true if added by moderator, false if by AI
+}
+
+interface Guideline {
+  id: string;
+  title: string;
+  description: string;
+  checked: boolean;
+  issues: Issue[]; // Issues directly linked to this guideline
+  hasIssues: boolean; // Derived state
+  issueOptions: { // Predefined issues for quick selection
+    id: string;
+    description: string;
+    severity: IssueSeverity;
+    selected: boolean;
+    line?: number;
+    note?: string;
+  }[];
+}
+
+type statusPublish = 'pending' | 'approved' | 'rejected' | 'draft' | 'under_review';
+
+const route = useRoute();
+const router = useRouter();
+const toast = useToast();
+
+const novelId = route.params.novelId as string;
+const chapterId = route.params.chapterId as string;
+
+const pending = ref(true);
+const error = ref<string | null>(null);
+const novelData = ref<any>(null); // Replace 'any' with actual Novel interface
+const chapters = ref<Chapter[]>([]);
+const currentChapter = ref<Chapter | null>(null);
+const createdBy = ref<User>({ _id: 'user123', username: 'ModeratorUser' }); // Mock user
+const reviewStatus = ref<statusPublish>('pending');
+const reviewTime = ref(0);
+let reviewTimer: NodeJS.Timeout;
+
+const sidebarOpen = ref(false);
+const viewMode = ref<'original' | 'annotated' | 'diff'>('annotated');
+const showSearchModal = ref(false);
+const searchQuery = ref('');
+const searchOptions = ref({
+  caseSensitive: false,
+  wholeWord: false,
+  regex: false,
+});
+const searchResults = ref<any[]>([]); // { line: number, context: string, position: number }[]
+
+const showTextTools = ref(false);
+const fontSize = ref(16);
+const lineHeight = ref('1.6');
+const highlightMode = ref(false);
+const highlightedLineIndex = ref<number | null>(null); // For manual highlight
+
+const autoModerationLoading = ref(false);
+const showAddIssueModal = ref(false);
+const actionLoading = ref(false);
+
+const detectedIssues = ref<Issue[]>([]);
+const aiIssues = computed(() => detectedIssues.value.filter(issue => !issue.isManual));
+const manualIssues = computed(() => detectedIssues.value.filter(issue => issue.isManual));
+
+const guidelines = ref<Guideline[]>([
+  {
+    id: 'g1',
+    title: 'Nội dung phù hợp',
+    description: 'Đảm bảo nội dung không chứa các yếu tố nhạy cảm, bạo lực, hoặc không phù hợp.',
+    checked: false,
+    issues: [],
+    hasIssues: false,
+    issueOptions: [
+      { id: 'g1i1', description: 'Nội dung bạo lực', severity: 'high', selected: false },
+      { id: 'g1i2', description: 'Nội dung khiêu dâm', severity: 'critical', selected: false },
+      { id: 'g1i3', description: 'Ngôn ngữ thù địch', severity: 'medium', selected: false },
+    ],
+  },
+  {
+    id: 'g2',
+    title: 'Chính tả và ngữ pháp',
+    description: 'Kiểm tra lỗi chính tả, ngữ pháp và dấu câu.',
+    checked: true,
+    issues: [],
+    hasIssues: false,
+    issueOptions: [
+      { id: 'g2i1', description: 'Lỗi chính tả cơ bản', severity: 'low', selected: false },
+      { id: 'g2i2', description: 'Sai ngữ pháp nghiêm trọng', severity: 'medium', selected: false },
+    ],
+  },
+  {
+    id: 'g3',
+    title: 'Định dạng văn bản',
+    description: 'Đảm bảo định dạng nhất quán, dễ đọc (ví dụ: xuống dòng, đoạn văn).',
+    checked: true,
+    issues: [],
+    hasIssues: false,
+    issueOptions: [
+      { id: 'g3i1', description: 'Lỗi xuống dòng/đoạn văn', severity: 'low', selected: false },
+      { id: 'g3i2', description: 'Phân đoạn không hợp lý', severity: 'medium', selected: false },
+    ],
+  },
+]);
+
+const newIssue = ref<Omit<Issue, '_id' | 'resolved' | 'isManual'>>({
+  type: 'content',
+  severity: 'low',
+  title: '',
+  description: '',
+  line: 1,
+  position: '',
+});
+
+const issueTypes = [
+  { label: 'Ngữ pháp', value: 'grammar' },
+  { label: 'Chính tả', value: 'spelling' },
+  { label: 'Nội dung', value: 'content' },
+  { label: 'Định dạng', value: 'formatting' },
+  { label: 'Khác', value: 'other' },
+];
+
+const severityOptions = [
+  { label: 'Thấp', value: 'low' },
+  { label: 'Trung bình', value: 'medium' },
+  { label: 'Cao', value: 'high' },
+  { label: 'Nghiêm trọng', value: 'critical' },
+];
+
+const issueSchema = z.object({
+  type: z.enum(['grammar', 'spelling', 'content', 'formatting', 'other']),
+  severity: z.enum(['low', 'medium', 'high', 'critical']),
+  title: z.string().min(3, 'Tiêu đề phải có ít nhất 3 ký tự'),
+  description: z.string().min(5, 'Mô tả phải có ít nhất 5 ký tự'),
+  line: z.number().min(1, 'Dòng phải lớn hơn 0'),
+  position: z.string().optional(),
+});
+
+const actionModalOpen = ref(false);
+const actionModalTitle = ref('');
+const actionModalDescription = ref('');
+const actionModalColor = ref('');
+const actionModalLabel = ref('');
+const currentActionType = ref('');
+const actionNote = ref('');
+const actionGuidelineNote = ref('');
+
+const reviewConfirmationModalOpen = ref(false);
+
+// Computed properties
+const contentParagraphs = computed(() => {
+  return currentChapter.value?.content ? currentChapter.value.content.split('\n').filter(p => p.trim() !== '') : [];
+});
+
+const annotatedContent = computed(() => {
+  if (!currentChapter.value) return [];
+  const content = currentChapter.value.content || '';
+  const lines = content.split('\n');
+
+  return lines.map((lineText, index) => {
+    const issuesOnLine = detectedIssues.value.filter(issue => issue.line === index + 1);
+    if (issuesOnLine.length > 0) {
+      // For simplicity, pick the first issue on the line to display.
+      // In a real app, you might want to combine or prioritize.
+      const highestSeverityIssue = issuesOnLine.sort((a, b) => {
+        const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+        return severityOrder[b.severity] - severityOrder[a.severity];
+      })[0];
+      return { type: 'issue', text: lineText, issue: highestSeverityIssue, originalLineIndex: index };
+    }
+    return { type: 'text', text: lineText, originalLineIndex: index };
+  });
+});
+
+const reviewProgress = computed(() => {
+  if (!currentChapter.value) return 0;
+  const totalGuidelines = guidelines.value.length;
+  if (totalGuidelines === 0) return 100;
+  const checkedGuidelines = guidelines.value.filter(g => g.checked).length;
+  return (checkedGuidelines / totalGuidelines) * 100;
+});
+
+const complianceScore = computed(() => {
+  const totalGuidelines = guidelines.value.length;
+  if (totalGuidelines === 0) return 100;
+
+  const passedGuidelines = guidelines.value.filter(g => g.checked && g.issues.length === 0).length;
+  const score = (passedGuidelines / totalGuidelines) * 100;
+  return Math.round(score);
+});
+
+const hasBlockingIssues = computed(() => {
+  return detectedIssues.value.some(issue => !issue.resolved && (issue.severity === 'high' || issue.severity === 'critical'));
+});
+
+const canConfirmReview = computed(() => {
+  const allGuidelinesChecked = guidelines.value.every(g => g.checked);
+  const noUnresolvedBlockingIssues = !detectedIssues.value.some(issue => !issue.resolved && (issue.severity === 'high' || issue.severity === 'critical'));
+  return allGuidelinesChecked && noUnresolvedBlockingIssues;
+});
+
+const analytics = ref({
+  avgSentenceLength: 0,
+  readabilityScore: 0,
+  readabilityLevel: 'N/A',
+  repetitiveWords: 0,
+  topKeywords: [] as { word: string; count: number }[],
+  maxKeywordCount: 1,
+});
+
+const contentFlags = ref([
+  { type: 'hate_speech', label: 'Ngôn ngữ thù địch', detected: false, count: 0 },
+  { type: 'sexual_content', label: 'Nội dung tình dục', detected: false, count: 0 },
+  { type: 'violence', label: 'Bạo lực', detected: false, count: 0 },
+  { type: 'drug_use', label: 'Sử dụng ma túy', detected: false, count: 0 },
+]);
+
+const headerActions = computed(() => [
+  [
+    {
+      label: 'Lưu nháp',
+      icon: 'i-lucide-save',
+      click: saveDraft,
+    },
+  ],
+  [
+    {
+      label: 'Chỉnh sửa chương',
+      icon: 'i-lucide-edit',
+      click: () => {
+        // Handle edit chapter
+      },
+    },
+    {
+      label: 'Xóa chương',
+      icon: 'i-lucide-trash',
+      click: () => {
+        // Handle delete chapter
+      },
+    },
+  ],
+]);
+
+const toolTabs = [
+  {
+    label: 'Vấn đề',
+    icon: 'i-lucide-alert-triangle',
+    slot: 'issues',
+  },
+  {
+    label: 'Hướng dẫn',
+    icon: 'i-lucide-clipboard-check',
+    slot: 'guidelines',
+  },
+  {
+    label: 'Phân tích',
+    icon: 'i-lucide-bar-chart-2',
+    slot: 'analytics',
+  },
+];
+
+// Methods
+const getStatusColor = (status: statusPublish) => {
+  switch (status) {
+    case 'approved':
+      return 'green';
+    case 'rejected':
+      return 'red';
+    case 'pending':
+      return 'yellow';
+    case 'under_review':
+      return 'blue';
+    case 'draft':
+    default:
+      return 'gray';
+  }
+};
+
+const getStatusIcon = (status: statusPublish) => {
+  switch (status) {
+    case 'approved':
+      return 'i-lucide-check-circle';
+    case 'rejected':
+      return 'i-lucide-x-circle';
+    case 'pending':
+      return 'i-lucide-hourglass';
+    case 'under_review':
+      return 'i-lucide-eye';
+    case 'draft':
+    default:
+      return 'i-lucide-file-text';
+  }
+};
+
+const getStatusLabel = (status: statusPublish) => {
+  switch (status) {
+    case 'approved':
+      return 'Đã duyệt';
+    case 'rejected':
+      return 'Từ chối';
+    case 'pending':
+      return 'Đang chờ';
+    case 'under_review':
+      return 'Đang kiểm duyệt';
+    case 'draft':
+    default:
+      return 'Bản nháp';
+  }
+};
+
+const getSeverityColor = (severity: IssueSeverity) => {
+  switch (severity) {
+    case 'low':
+      return 'green';
+    case 'medium':
+      return 'yellow';
+    case 'high':
+      return 'orange';
+    case 'critical':
+      return 'red';
+    default:
+      return 'gray';
+  }
+};
+
+const getSeverityLabel = (severity: IssueSeverity) => {
+  switch (severity) {
+    case 'low':
+      return 'Thấp';
+    case 'medium':
+      return 'Trung bình';
+    case 'high':
+      return 'Cao';
+    case 'critical':
+      return 'Nghiêm trọng';
+    default:
+      return 'Không rõ';
+  }
+};
+
+const getIssueIcon = (type: IssueType) => {
+  switch (type) {
+    case 'grammar': return 'i-lucide-pencil';
+    case 'spelling': return 'i-lucide-spell-check';
+    case 'content': return 'i-lucide-file-warning';
+    case 'formatting': return 'i-lucide-align-left';
+    default: return 'i-lucide-circle-help';
+  }
+};
+
+const getIssueIconColor = (severity: IssueSeverity) => {
+  switch (severity) {
+    case 'low': return 'text-green-500';
+    case 'medium': return 'text-yellow-500';
+    case 'high': return 'text-orange-500';
+    case 'critical': return 'text-red-500';
+    default: return 'text-gray-500';
+  }
+};
+
+const getIssueColor = (severity: IssueSeverity) => {
+  switch (severity) {
+    case 'low': return 'border-green-300 dark:border-green-700';
+    case 'medium': return 'border-yellow-300 dark:border-yellow-700';
+    case 'high': return 'border-orange-300 dark:border-orange-700';
+    case 'critical': return 'border-red-300 dark:border-red-700';
+    default: return 'border-gray-300 dark:border-gray-700';
+  }
+};
+
+const formatDate = (dateString?: string) => {
+  if (!dateString) return 'N/A';
+  return new Date(dateString).toLocaleDateString('vi-VN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
+
+const formatTime = (seconds: number) => {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
+const fetchChapterData = async () => {
+  pending.value = true;
+  error.value = null;
+  try {
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const mockChapters: Chapter[] = [
+      {
+        _id: 'chap1',
+        novelId: novelId,
+        chapterNumber: 1,
+        title: 'Chương 1: Khởi đầu mới',
+        content: `Trong một thế giới đầy phép thuật và những sinh vật kỳ lạ, một anh hùng trẻ tuổi bắt đầu cuộc hành trình của mình. Anh ta không biết rằng số phận của cả vương quốc đang nằm trong tay mình.
+Anh ta đã luyện tập rất chăm chỉ trong nhiều năm, ngày cũng như đêm, để đạt được sức mạnh mà anh ta hằng mong ước. Nhưng liệu đó có đủ không?
+Một con rồng khổng lồ xuất hiện trên bầu trời, gieo rắc nỗi kinh hoàng. Người dân sợ hãi bỏ chạy tán loạn, không ai dám đối mặt với nó.
+Chàng anh hùng quyết định đứng lên, đối mặt với con quái vật. Anh ta rút thanh kiếm của mình, lưỡi kiếm sáng loáng dưới ánh mặt trời.
+Trận chiến diễn ra ác liệt. Những đòn tấn công mạnh mẽ từ cả hai phía. Tiếng gầm của rồng và tiếng thép va chạm vang vọng khắp thung lũng.
+Cuối cùng, với một đòn chí mạng, chàng anh hùng đã đánh bại con rồng. Anh ta trở thành vị cứu tinh của vương quốc.
+Mọi người hân hoan reo hò, ca ngợi tên anh. Anh ta đã mang lại hòa bình và hy vọng cho mọi người.
+Nhưng liệu hòa bình này có kéo dài mãi mãi? Luôn có những mối đe dọa mới xuất hiện. Anh ta biết rằng nhiệm vụ của mình chưa kết thúc.
+Anh ta sẽ tiếp tục bảo vệ vương quốc và chống lại cái ác, bất kể khó khăn nào. Đây là lời thề của anh.
+Và cứ thế, câu chuyện về chàng anh hùng vĩ đại được truyền từ đời này sang đời khác.`,
+        status: 'pending',
+        wordCount: 150,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        _id: 'chap2',
+        novelId: novelId,
+        chapterNumber: 2,
+        title: 'Chương 2: Thử thách mới',
+        content: `Sau chiến thắng huy hoàng, chàng anh hùng nhận ra rằng sức mạnh cá nhân không phải là tất cả. Anh cần đồng đội.
+Anh bắt đầu chiêu mộ những người có cùng chí hướng. Một pháp sư thông thái, một cung thủ thiện xạ, và một chiến binh dũng mãnh đã gia nhập.
+Họ cùng nhau vượt qua nhiều thử thách, đối mặt với những cạm bẫy nguy hiểm và những kẻ thù hùng mạnh.
+Tình bạn và lòng tin giữa họ ngày càng bền chặt. Họ học cách tin tưởng lẫn nhau.
+Một ngày nọ, một lời tiên tri cổ xưa được tiết lộ, nói về một mối đe dọa còn lớn hơn cả con rồng.
+Một thế lực bóng tối đang trỗi dậy, đe dọa nhấn chìm cả thế giới vào hỗn loạn.
+Chàng anh hùng và những người bạn của mình biết rằng họ phải ngăn chặn nó. Đây là nhiệm vụ cuối cùng của họ.
+Họ chuẩn bị cho trận chiến định mệnh, trận chiến sẽ quyết định số phận của tất cả.`,
+        status: 'draft',
+        wordCount: 120,
+        createdAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+      },
+    ];
+
+    novelData.value = {
+      _id: novelId,
+      title: 'Tiểu Thuyết Anh Hùng',
+      author: 'Tác giả Ẩn Danh',
+    };
+
+    chapters.value = mockChapters;
+    currentChapter.value = chapters.value.find(c => c._id === chapterId) || chapters.value[0];
+    reviewStatus.value = currentChapter.value.status;
+    startReviewTimer();
+
+    // Mock AI issues for the current chapter
+    if (currentChapter.value._id === 'chap1') {
+      detectedIssues.value.push(
+        { _id: 'ai-issue-1', type: 'content', severity: 'high', title: 'Nội dung bạo lực', description: 'Mô tả chi tiết về cảnh bạo lực không cần thiết.', line: 5, resolved: false, isManual: false },
+        { _id: 'ai-issue-2', type: 'spelling', severity: 'low', title: 'Lỗi chính tả', description: 'Từ "hân hoan" viết sai thành "hân hoang".', line: 7, resolved: false, isManual: false },
+        { _id: 'ai-issue-3', type: 'grammar', severity: 'medium', title: 'Lỗi ngữ pháp', description: 'Thiếu chủ ngữ trong câu.', line: 2, resolved: false, isManual: false, position: 'đầu dòng'},
+      );
+    }
+    // Update guideline.hasIssues based on detectedIssues
+    updateGuidelineIssuesStatus();
+    updateAnalytics();
+
+  } catch (err: any) {
+    error.value = err.message || 'Không thể tải dữ liệu chương.';
+  } finally {
+    pending.value = false;
+  }
+};
+
+const updateGuidelineIssuesStatus = () => {
+  guidelines.value.forEach(guideline => {
+    guideline.hasIssues = guideline.issues.length > 0;
+  });
+};
+
+const updateAnalytics = () => {
+  if (!currentChapter.value || !currentChapter.value.content) {
+    analytics.value = {
+      avgSentenceLength: 0,
+      readabilityScore: 0,
+      readabilityLevel: 'N/A',
+      repetitiveWords: 0,
+      topKeywords: [],
+      maxKeywordCount: 1,
+    };
+    contentFlags.value.forEach(flag => {
+      flag.detected = false;
+      flag.count = 0;
+    });
+    return;
+  }
+
+  const content = currentChapter.value.content;
+
+  // Simulate analytics calculation
+  const sentences = content.split(/[.!?]\s*|\n/).filter(s => s.trim() !== '');
+  const words = content.split(/\s+/).filter(w => w.trim() !== '');
+  const totalWords = words.length;
+  const totalSentences = sentences.length;
+
+  analytics.value.avgSentenceLength = totalSentences > 0 ? Math.round(totalWords / totalSentences) : 0;
+
+  // Simple readability score (e.g., Flesch-Kincaid Readability Test simplification)
+  // Higher score = easier to read. For demo, just a random range.
+  const score = Math.random() * 50 + 30; // Between 30 and 80
+  analytics.value.readabilityScore = parseFloat(score.toFixed(2));
+  if (score > 60) analytics.value.readabilityLevel = 'Dễ đọc';
+  else if (score > 40) analytics.value.readabilityLevel = 'Trung bình';
+  else analytics.value.readabilityLevel = 'Khó đọc';
+
+  // Repetitive words (simple example: words appearing > 3 times and are not common)
+  const wordCounts: { [key: string]: number } = {};
+  words.forEach(word => {
+    const cleanWord = word.toLowerCase().replace(/[.,!?;:"'()]/g, '');
+    if (cleanWord.length > 2) { // Ignore very short words
+      wordCounts[cleanWord] = (wordCounts[cleanWord] || 0) + 1;
+    }
+  });
+
+  let repetitiveCount = 0;
+  let topKeywords: { word: string; count: number }[] = [];
+  for (const word in wordCounts) {
+    if (wordCounts[word] > 3) { // Example threshold for repetitive
+      repetitiveCount++;
+    }
+    topKeywords.push({ word, count: wordCounts[word] });
+  }
+  analytics.value.repetitiveWords = totalWords > 0 ? Math.round((repetitiveCount / totalWords) * 10000) / 100 : 0; // percentage
+  topKeywords.sort((a, b) => b.count - a.count);
+  analytics.value.topKeywords = topKeywords.slice(0, 10); // Top 10 keywords
+  analytics.value.maxKeywordCount = topKeywords.length > 0 ? topKeywords[0].count : 1;
+
+  // Simulate content flags based on keywords
+  contentFlags.value.forEach(flag => {
+    flag.detected = false;
+    flag.count = 0;
+  });
+  if (content.toLowerCase().includes('bạo lực')) {
+    contentFlags.value.find(f => f.type === 'violence')!.detected = true;
+    contentFlags.value.find(f => f.type === 'violence')!.count = (content.toLowerCase().match(/bạo lực/g) || []).length;
+  }
+  if (content.toLowerCase().includes('sex') || content.toLowerCase().includes('khiêu dâm')) {
+    contentFlags.value.find(f => f.type === 'sexual_content')!.detected = true;
+    contentFlags.value.find(f => f.type === 'sexual_content')!.count = (content.toLowerCase().match(/sex|khiêu dâm/g) || []).length;
+  }
+};
+
+const getReadabilityColor = (score: number) => {
+  if (score > 60) return 'green';
+  if (score > 40) return 'yellow';
+  return 'red';
+};
+
+const startReviewTimer = () => {
+  if (reviewTimer) clearInterval(reviewTimer);
+  reviewTimer = setInterval(() => {
+    reviewTime.value++;
+  }, 1000);
+};
+
+const onClose = () => {
+  router.back();
+};
+
+const selectChapter = (chapter: Chapter) => {
+  currentChapter.value = chapter;
+  reviewStatus.value = chapter.status;
+  detectedIssues.value = []; // Clear issues when changing chapter
+  updateAnalytics();
+  router.push(`/moderator/novel/${novelId}/chapter/${chapter._id}`);
+};
+
+const saveDraft = () => {
+  if (currentChapter.value) {
+    toast.add({
+      title: 'Lưu nháp thành công',
+      description: `Chương "${currentChapter.value.title}" đã được lưu nháp.`,
+      color: 'green',
+      icon: 'i-lucide-check',
+    });
+  }
+};
+
+const performSearch = () => {
+  if (!searchQuery.value || !currentChapter.value) {
+    searchResults.value = [];
+    return;
+  }
+
+  const content = currentChapter.value.content;
+  const lines = content.split('\n');
+  const results: any[] = [];
+
+  let regex: RegExp;
+  try {
+    const pattern = searchOptions.value.wholeWord ? `\\b${searchQuery.value}\\b` : searchQuery.value;
+    regex = new RegExp(pattern, searchOptions.value.caseSensitive ? 'g' : 'gi');
+  } catch (e: any) {
+    toast.add({ title: 'Lỗi Regex', description: e.message, color: 'red' });
+    return;
+  }
+
+  lines.forEach((line, index) => {
+    let match;
+    while ((match = regex.exec(line)) !== null) {
+      results.push({
+        line: index + 1,
+        context: line,
+        position: match.index,
+      });
+    }
+  });
+  searchResults.value = results;
+
+  if (results.length === 0) {
+    toast.add({ title: 'Không tìm thấy', description: `Không tìm thấy "${searchQuery.value}" trong chương này.`, color: 'yellow' });
+  }
+};
+
+const jumpToResult = (result: { line: number, context: string, position: number }) => {
+  // Logic to scroll to the specific line or highlight it
+  highlightedLineIndex.value = result.line - 1; // Adjust for 0-indexed paragraphs
+  viewMode.value = 'original'; // Switch to original view to show highlight
+  // In a real app, you'd scroll to the element. Here's a placeholder:
+  toast.add({ title: 'Đã nhảy tới', description: `Đã nhảy tới dòng ${result.line}`, color: 'blue' });
+  nextTick(() => {
+    const contentElement = document.querySelector('.content-original');
+    if (contentElement) {
+      const targetParagraph = contentElement.children[result.line - 1] as HTMLElement;
+      if (targetParagraph) {
+        targetParagraph.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  });
+};
+
+const isHighlighted = (index: number, paragraph: string) => {
+  if (!highlightMode.value) return false;
+  // This is a basic example. In a real app, you'd match the text with a selected issue.
+  // For now, it highlights the manually selected line.
+  return highlightedLineIndex.value === index;
+};
+
+const handleLineClick = (index: number, text: string) => {
+  if (highlightMode.value) {
+    highlightedLineIndex.value = index;
+    // Pre-fill line number in add issue modal if in highlight mode
+    newIssue.value.line = index + 1;
+    showAddIssueModal.value = true;
+  } else {
+    // Optionally, show context menu or more info about the line
+  }
+};
+
+const highlightIssue = (issue: Issue) => {
+  viewMode.value = 'annotated'; // Ensure annotated view is active
+  highlightedLineIndex.value = issue.line - 1; // Adjust for 0-indexed paragraphs
+
+  nextTick(() => {
+    const contentElement = document.querySelector('.content-annotated');
+    if (contentElement) {
+      // Find the specific paragraph that corresponds to the issue's line
+      const targetParagraph = contentElement.children[issue.line - 1] as HTMLElement;
+      if (targetParagraph) {
+        targetParagraph.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Optionally, add a temporary visual cue like a pulse animation
+        targetParagraph.classList.add('animate-pulse-once'); // You'd define this in CSS
+        setTimeout(() => {
+          targetParagraph.classList.remove('animate-pulse-once');
+        }, 1000);
+      }
+    }
+  });
+};
+
+const handleAutoModeration = async () => {
+  if (!currentChapter.value) {
+    toast.add({ title: 'Lỗi', description: 'Chưa có chương nào được chọn để kiểm duyệt tự động.', color: 'red' });
+    return;
+  }
+
+  autoModerationLoading.value = true;
+  toast.add({ title: 'Đang chạy kiểm duyệt AI', description: 'Vui lòng đợi...', color: 'blue', icon: 'i-lucide-bot' });
+
+  try {
+    // Simulate AI moderation API call
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Clear previous AI issues
+    detectedIssues.value = detectedIssues.value.filter(issue => issue.isManual);
+
+    // Generate some mock AI issues based on content
+    const content = currentChapter.value.content.toLowerCase();
+    const newAiIssues: Issue[] = [];
+    let issueIdCounter = detectedIssues.value.length; // Start ID from existing issues
+
+    if (content.includes('bạo lực')) {
+      newAiIssues.push({
+        _id: `ai-${issueIdCounter++}`,
+        type: 'content',
+        severity: 'high',
+        title: 'Nội dung bạo lực tiềm ẩn',
+        description: 'Phát hiện từ khóa liên quan đến bạo lực.',
+        line: content.split('\n').findIndex(line => line.toLowerCase().includes('bạo lực')) + 1,
+        resolved: false,
+        isManual: false,
+      });
+    }
+    if (content.includes('sex') || content.includes('khiêu dâm')) {
+      newAiIssues.push({
+        _id: `ai-${issueIdCounter++}`,
+        type: 'content',
+        severity: 'critical',
+        title: 'Nội dung người lớn',
+        description: 'Phát hiện từ khóa tình dục hoặc khiêu dâm.',
+        line: content.split('\n').findIndex(line => line.toLowerCase().includes('sex') || line.toLowerCase().includes('khiêu dâm')) + 1,
+        resolved: false,
+        isManual: false,
+      });
+    }
+    if (content.includes('ghét') || content.includes('thù địch')) {
+      newAiIssues.push({
+        _id: `ai-${issueIdCounter++}`,
+        type: 'content',
+        severity: 'medium',
+        title: 'Ngôn ngữ thù địch',
+        description: 'Phát hiện từ ngữ mang tính thù ghét.',
+        line: content.split('\n').findIndex(line => line.toLowerCase().includes('ghét') || line.toLowerCase().includes('thù địch')) + 1,
+        resolved: false,
+        isManual: false,
+      });
+    }
+    if (content.includes('sai chính tả')) { // Example for spelling
+      newAiIssues.push({
+        _id: `ai-${issueIdCounter++}`,
+        type: 'spelling',
+        severity: 'low',
+        title: 'Lỗi chính tả',
+        description: 'Một số lỗi chính tả nhỏ được phát hiện.',
+        line: content.split('\n').findIndex(line => line.toLowerCase().includes('sai chính tả')) + 1,
+        resolved: false,
+        isManual: false,
+      });
+    }
+
+    detectedIssues.value.push(...newAiIssues);
+
+    toast.add({
+      title: 'Kiểm duyệt AI hoàn tất',
+      description: `${newAiIssues.length} vấn đề được phát hiện.`,
+      color: 'green',
+      icon: 'i-lucide-check',
+    });
+    updateAnalytics(); // Update analytics after AI issues are detected
+  } catch (err: any) {
+    toast.add({ title: 'Lỗi kiểm duyệt AI', description: err.message, color: 'red', icon: 'i-lucide-alert-circle' });
+  } finally {
+    autoModerationLoading.value = false;
+  }
+};
+
+const addManualIssue = async () => {
+  try {
+    actionLoading.value = true;
+    await issueSchema.parseAsync(newIssue.value); // Validate the form
+
+    // Check if the line number is valid within the current chapter's content
+    const contentLines = currentChapter.value?.content.split('\n').length || 0;
+    if (newIssue.value.line > contentLines || newIssue.value.line < 1) {
+      toast.add({ title: 'Lỗi', description: `Dòng ${newIssue.value.line} không hợp lệ. Chương này chỉ có ${contentLines} dòng.`, color: 'red' });
+      actionLoading.value = false;
+      return;
+    }
+
+    const issueToAdd: Issue = {
+      _id: `manual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      ...newIssue.value,
+      resolved: false,
+      isManual: true,
+    };
+    detectedIssues.value.push(issueToAdd);
+
+    toast.add({ title: 'Thêm vấn đề thành công', description: 'Vấn đề thủ công đã được thêm.', color: 'green' });
+    showAddIssueModal.value = false;
+    resetNewIssueForm();
+    updateAnalytics(); // Update analytics after adding manual issue
+  } catch (e: any) {
+    if (e instanceof z.ZodError) {
+      e.errors.forEach(err => {
+        toast.add({ title: 'Lỗi dữ liệu', description: err.message, color: 'red' });
+      });
+    } else {
+      toast.add({ title: 'Lỗi khi thêm vấn đề', description: e.message || 'Không thể thêm vấn đề.', color: 'red' });
+    }
+  } finally {
+    actionLoading.value = false;
+  }
+};
+
+const resetNewIssueForm = () => {
+  newIssue.value = {
+    type: 'content',
+    severity: 'low',
+    title: '',
+    description: '',
+    line: highlightedLineIndex.value !== null ? highlightedLineIndex.value + 1 : 1, // Pre-fill if a line was highlighted
+    position: '',
+  };
+};
+
+const removeIssue = (_id: string) => {
+  detectedIssues.value = detectedIssues.value.filter(issue => issue._id !== _id);
+  // Also remove from guideline.issues if it was linked
+  guidelines.value.forEach(g => {
+    g.issues = g.issues.filter(issue => issue._id !== _id);
+    g.hasIssues = g.issues.length > 0;
+    // If the issue was linked via guideline.issueOptions, deselect it
+    g.issueOptions.forEach(option => {
+      if (option.selected && option.id === _id) { // Assuming issueOption.id can match issue._id in this context
+        option.selected = false;
+        option.line = undefined;
+        option.note = undefined;
+      }
+    });
+  });
+  toast.add({ title: 'Xóa vấn đề thành công', description: 'Vấn đề đã được xóa.', color: 'green' });
+  updateAnalytics();
+};
+
+const toggleGuideline = (guideline: Guideline) => {
+  if (guideline.checked) {
+    // If checked, remove all linked issues and reset issue options
+    guideline.issues = [];
+    guideline.hasIssues = false;
+    guideline.issueOptions.forEach(option => {
+      option.selected = false;
+      option.line = undefined;
+      option.note = undefined;
+    });
+  } else {
+    // If unchecked, it means there might be issues, but we only set hasIssues if issues are actually added manually or via issueOptions
+    // For now, it stays false until issues are explicitly added.
+  }
+};
+
+const handleGuidelineIssueSelection = (guideline: Guideline, issueOption: Guideline['issueOptions'][0]) => {
+  if (!issueOption.selected) {
+    // If deselected, remove the corresponding issue from detectedIssues and guideline.issues
+    guideline.issues = guideline.issues.filter(issue => issue.description !== issueOption.description);
+    detectedIssues.value = detectedIssues.value.filter(issue => issue.description !== issueOption.description);
+    issueOption.line = undefined;
+    issueOption.note = undefined;
+  }
+  guideline.hasIssues = guideline.issues.length > 0;
+};
+
+const addGuidelineIssue = (guideline: Guideline, issueOption: Guideline['issueOptions'][0]) => {
+  if (!currentChapter.value) {
+    toast.add({ title: 'Lỗi', description: 'Chưa có chương nào được chọn.', color: 'red' });
+    return;
+  }
+
+  // Check if issue already exists to prevent duplicates
+  const existingIssue = guideline.issues.find(issue => issue.description === issueOption.description && issue.line === issueOption.line);
+  if (existingIssue) {
+    toast.add({ title: 'Cảnh báo', description: 'Vấn đề này đã được thêm cho hướng dẫn này.', color: 'yellow' });
+    return;
+  }
+
+  // Validate line number if provided
+  const contentLines = currentChapter.value.content.split('\n').length || 0;
+  if (issueOption.line && (issueOption.line > contentLines || issueOption.line < 1)) {
+    toast.add({ title: 'Lỗi', description: `Dòng ${issueOption.line} không hợp lệ. Chương này chỉ có ${contentLines} dòng.`, color: 'red' });
+    return;
+  }
+
+  const newGuidelineIssue: Issue = {
+    _id: `guideline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    type: 'content', // Or derive from guideline category
+    severity: issueOption.severity,
+    title: guideline.title,
+    description: issueOption.note || issueOption.description,
+    line: issueOption.line || 0, // 0 if no specific line
+    resolved: false,
+    isManual: true, // Always manual if from guideline checklist
+  };
+
+  guideline.issues.push(newGuidelineIssue);
+  detectedIssues.value.push(newGuidelineIssue); // Add to overall detected issues
+  guideline.hasIssues = true;
+  guideline.checked = false; // Uncheck guideline if issue is added
+
+  toast.add({ title: 'Thêm vấn đề từ hướng dẫn', description: `Vấn đề "${issueOption.description}" đã được thêm.`, color: 'green' });
+  updateAnalytics();
+};
+
+const getActionGuidelineNote = (actionType: string) => {
+  let note = '';
+  const issuesForAction = detectedIssues.value.filter(issue => !issue.resolved);
+
+  if (issuesForAction.length > 0) {
+    note += 'Các vi phạm phát hiện:\n';
+    issuesForAction.forEach(issue => {
+      note += `- ${issue.title} (Dòng: ${issue.line}, Mức độ: ${getSeverityLabel(issue.severity)}): ${issue.description}\n`;
+    });
+  }
+
+  const uncheckedGuidelines = guidelines.value.filter(g => !g.checked);
+  if (uncheckedGuidelines.length > 0) {
+    if (note) note += '\n'; // Add separator if there were issues
+    note += 'Các hướng dẫn chưa tuân thủ:\n';
+    uncheckedGuidelines.forEach(g => {
+      note += `- ${g.title}: ${g.description}\n`;
+      if (g.issues.length > 0) {
+        g.issues.forEach(issue => {
+          note += `  - Vấn đề: ${issue.description} (Dòng: ${issue.line}, Mức độ: ${getSeverityLabel(issue.severity)})\n`;
+        });
+      }
+    });
+  }
+
+  if (actionType === 'approve' && issuesForAction.length === 0 && uncheckedGuidelines.length === 0) {
+    note = 'Không có nội dung vi phạm.';
+  } else if (actionType === 'approve') {
+    // If approving with issues, explicitly state that some issues were ignored or considered minor
+    note = 'Chương được duyệt với các lưu ý về vi phạm:\n' + note;
+  } else if (actionType === 'reject' || actionType === 'edit' || actionType === 'warning') {
+    if (issuesForAction.length > 0) {
+      const issueLines = issuesForAction.map(issue => `Dòng ${issue.line}`).join(', ');
+      note = `Có nội dung vi phạm ở ${issueLines}.\n` + note;
+    } else {
+      note = `Không có nội dung vi phạm rõ ràng, nhưng vẫn cần xem xét lại theo các hướng dẫn sau:\n` + note;
+    }
+  }
+  return note.trim();
+};
+
+const showActionModal = (action: string) => {
+  currentActionType.value = action;
+  actionNote.value = ''; // Clear previous note
+  actionGuidelineNote.value = getActionGuidelineNote(action);
+
+  switch (action) {
+    case 'approve':
+      actionModalTitle.value = 'Duyệt chương';
+      actionModalDescription.value = 'Xác nhận duyệt chương này. Chương sẽ được hiển thị công khai.';
+      actionModalColor.value = 'success';
+      actionModalLabel.value = 'Duyệt';
+      break;
+    case 'reject':
+      actionModalTitle.value = 'Từ chối chương';
+      actionModalDescription.value = 'Xác nhận từ chối chương này. Chương sẽ không được hiển thị công khai và sẽ yêu cầu tác giả chỉnh sửa.';
+      actionModalColor.value = 'error';
+      actionModalLabel.value = 'Từ chối';
+      break;
+    case 'edit':
+      actionModalTitle.value = 'Yêu cầu sửa đổi';
+      actionModalDescription.value = 'Yêu cầu tác giả sửa đổi chương này dựa trên các vấn đề đã phát hiện.';
+      actionModalColor.value = 'secondary';
+      actionModalLabel.value = 'Yêu cầu sửa';
+      break;
+    case 'warning':
+      actionModalTitle.value = 'Cảnh cáo tác giả';
+      actionModalDescription.value = 'Gửi cảnh cáo đến tác giả về các vi phạm nội dung. Chương có thể vẫn được duyệt nhưng có ghi nhận cảnh cáo.';
+      actionModalColor.value = 'warning';
+      actionModalLabel.value = 'Cảnh cáo';
+      break;
+  }
+  actionModalOpen.value = true;
+};
+
+const performAction = async () => {
+  if (!currentChapter.value) {
+    toast.add({ title: 'Lỗi', description: 'Chưa có chương nào được chọn.', color: 'red' });
+    return;
+  }
+
+  actionLoading.value = true;
+  try {
+    // Simulate API call to update chapter status and add review note
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    let newStatus: statusPublish = 'under_review';
+    let toastMessage = '';
+
+    switch (currentActionType.value) {
+      case 'approve':
+        newStatus = 'approved';
+        toastMessage = `Chương "${currentChapter.value.title}" đã được duyệt thành công.`;
+        break;
+      case 'reject':
+        newStatus = 'rejected';
+        toastMessage = `Chương "${currentChapter.value.title}" đã bị từ chối.`;
+        break;
+      case 'edit':
+        newStatus = 'pending'; // Set back to pending for author to edit
+        toastMessage = `Yêu cầu sửa đổi đã được gửi cho chương "${currentChapter.value.title}".`;
+        break;
+      case 'warning':
+        newStatus = currentChapter.value.status; // Status might not change, but a warning is issued
+        toastMessage = `Cảnh cáo đã được gửi cho tác giả về chương "${currentChapter.value.title}".`;
+        break;
+    }
+
+    currentChapter.value.status = newStatus;
+    reviewStatus.value = newStatus; // Update header status
+    // Here you would send actionNote and actionGuidelineNote to your backend
+    console.log(`Action: ${currentActionType.value}, Note: ${actionNote.value}, Guideline Note: ${actionGuidelineNote.value}`);
+
+    toast.add({ title: 'Thành công', description: toastMessage, color: 'green', icon: 'i-lucide-check' });
+    actionModalOpen.value = false;
+  } catch (err: any) {
+    toast.add({ title: 'Lỗi hành động', description: err.message || 'Không thể thực hiện hành động.', color: 'red', icon: 'i-lucide-alert-circle' });
+  } finally {
+    actionLoading.value = false;
+  }
+};
+
+const openReviewConfirmationModal = () => {
+  reviewConfirmationModalOpen.value = true;
+};
+
+const confirmReview = async () => {
+  if (!currentChapter.value) return;
+
+  try {
+    // Simulate API call to mark review as complete
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    currentChapter.value.status = 'under_review'; // Or 'completed_review'
+    reviewStatus.value = 'under_review';
+
+    toast.add({
+      title: 'Hoàn tất kiểm duyệt',
+      description: 'Bạn đã xác nhận hoàn tất việc kiểm duyệt chương này.',
+      color: 'success',
+      icon: 'i-lucide-check',
+    });
+    reviewConfirmationModalOpen.value = false;
+  } catch (err: any) {
+    toast.add({ title: 'Lỗi', description: err.message || 'Không thể xác nhận hoàn tất kiểm duyệt.', color: 'red' });
+  }
+};
+
+// Watchers
+watch(currentChapter, (newVal, oldVal) => {
+  if (newVal && newVal._id !== oldVal?._id) {
+    // Reset state when chapter changes
+    detectedIssues.value = [];
+    guidelines.value.forEach(g => {
+      g.checked = false;
+      g.issues = [];
+      g.hasIssues = false;
+      g.issueOptions.forEach(option => {
+        option.selected = false;
+        option.line = undefined;
+        option.note = undefined;
+      });
+    });
+    highlightedLineIndex.value = null;
+    resetNewIssueForm();
+  }
+});
+
+// Initial fetch
+onMounted(() => {
+  fetchChapterData();
+  startReviewTimer();
+});
+
+onUnmounted(() => {
+  if (reviewTimer) {
+    clearInterval(reviewTimer);
+  }
+});
+</script>
+
+<style scoped>
+/* Custom styles for highlight and issue notes */
+.highlight-low {
+  text-decoration: underline;
+  text-decoration-color: theme('colors.green.400');
+  text-decoration-thickness: 2px;
+  background-color: theme('colors.green.50'); /* subtle background */
+  padding: 1px 0; /* subtle padding */
+  border-radius: 2px;
+}
+
+.highlight-medium {
+  text-decoration: underline;
+  text-decoration-color: theme('colors.yellow.400');
+  text-decoration-thickness: 2px;
+  background-color: theme('colors.yellow.50');
+  padding: 1px 0;
+  border-radius: 2px;
+}
+
+.highlight-high {
+  text-decoration: underline;
+  text-decoration-color: theme('colors.orange.400');
+  text-decoration-thickness: 2px;
+  background-color: theme('colors.orange.50');
+  padding: 1px 0;
+  border-radius: 2px;
+}
+
+.highlight-critical {
+  text-decoration: underline;
+  text-decoration-color: theme('colors.red.500');
+  text-decoration-thickness: 2px;
+  background-color: theme('colors.red.50');
+  padding: 1px 0;
+  border-radius: 2px;
+}
+
+/* Dark mode adjustments */
+.dark .highlight-low {
+  background-color: theme('colors.green.900', '0.2');
+  text-decoration-color: theme('colors.green.600');
+}
+
+.dark .highlight-medium {
+  background-color: theme('colors.yellow.900', '0.2');
+  text-decoration-color: theme('colors.yellow.600');
+}
+
+.dark .highlight-high {
+  background-color: theme('colors.orange.900', '0.2');
+  text-decoration-color: theme('colors.orange.600');
+}
+
+.dark .highlight-critical {
+  background-color: theme('colors.red.900', '0.2');
+  text-decoration-color: theme('colors.red.600');
+}
+
+.issue-note {
+  transition: all 0.3s ease-in-out;
+}
+
+/* Optional: Add a subtle pulse animation when jumping to an issue */
+@keyframes pulse-once {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.01); opacity: 0.9; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-pulse-once {
+  animation: pulse-once 1s ease-out;
+}
+</style>

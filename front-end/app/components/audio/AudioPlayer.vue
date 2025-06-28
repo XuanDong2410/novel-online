@@ -95,7 +95,8 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="speed-controls">
-      <select @change="player?.rate(parseFloat($event.target.value))">
+      <!-- <select @change="player?.rate(parseFloat($event.target.value))"> -->
+      <select>
         <option value="0.5">
           0.5x
         </option>

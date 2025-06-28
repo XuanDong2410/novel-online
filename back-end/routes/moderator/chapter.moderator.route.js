@@ -1,6 +1,5 @@
 import express from 'express';
-import { 
-    getChapterDetails,
+import {
     approveChapter,
     rejectChapter,
     warnChapter,
@@ -11,7 +10,6 @@ import {
 
 const router = express.Router();
 
-router.get('/:chapterId', getChapterDetails);
 router.patch('/:chapterId/approve', approveChapter);
 router.patch('/:chapterId/reject', rejectChapter);
 router.patch('/:chapterId/edit', requestEditChapter);

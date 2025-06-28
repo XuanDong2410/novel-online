@@ -1,0 +1,1105 @@
+<template>
+  <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <!-- Header -->
+    <header class="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800">
+      <div class="flex items-center justify-between px-4 py-3 max-w-7xl mx-auto">
+        <div class="flex items-center gap-3">
+          <UButton
+            icon="i-lucide-menu"
+            variant="ghost"
+            size="sm"
+            @click="sidebarOpen = !sidebarOpen"
+          />
+          <h1 class="font-semibold text-gray-900 dark:text-white truncate">
+            {{ currentNovel.title }}
+          </h1>
+        </div>
+        <div class="flex items-center gap-2">
+          <!-- Audio/TTS Controls -->
+          <div v-if="isAudioMode || isTTSMode" class="flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
+            <UButton
+              :icon="(isTTSMode ? isTTSPlaying : isPlaying) ? 'i-lucide-pause' : 'i-lucide-play'"
+              variant="ghost"
+              size="xs"
+              @click="isTTSMode ? toggleTTS() : togglePlayPause()"
+            />
+            <span class="text-xs text-gray-600 dark:text-gray-400">
+              <template v-if="isTTSMode">
+                {{ currentSentenceIndex + 1 }} / {{ sentences.length }}
+              </template>
+              <template v-else>
+                {{ formatTime(currentTime) }} / {{ formatTime(duration) }}
+              </template>
+            </span>
+            <UButton
+              icon="i-lucide-settings"
+              variant="ghost"
+              size="xs"
+              @click="showTTSSettings = true"
+            />
+          </div>
+          <!-- Audio Sync Toggle -->
+          <UButton
+            v-if="isAudioMode"
+            :icon="audioSyncEnabled ? 'i-lucide-check-circle' : 'i-lucide-x-circle'"
+            variant="ghost"
+            size="sm"
+            :class="audioSyncEnabled ? 'text-green-500' : ''"
+            @click="toggleAudioSync"
+          />
+          <!-- Mode Toggle -->
+          <UButton
+            :icon="isAudioMode ? 'i-lucide-book-open' : 'i-lucide-headphones'"
+            variant="ghost"
+            size="sm"
+            @click="toggleMode"
+          />
+          <!-- TTS Toggle -->
+          <UButton
+            :icon="isTTSMode ? 'i-lucide-volume-x' : 'i-lucide-volume-2'"
+            variant="ghost"
+            size="sm"
+            :class="isTTSMode ? 'text-blue-500' : ''"
+            @click="toggleTTSMode"
+          />
+          <!-- Settings -->
+          <UButton
+            icon="i-lucide-settings"
+            variant="ghost"
+            size="sm"
+            @click="showSettings = !showSettings"
+          />
+        </div>
+      </div>
+      <!-- Progress Bar -->
+      <div class="h-1 bg-gray-200 dark:bg-gray-800">
+        <div
+          class="h-full bg-primary-500 transition-all duration-300"
+          :style="{ width: `${readingProgress}%` }"
+        />
+      </div>
+    </header>
+
+    <div class="flex">
+      <!-- Sidebar -->
+      <aside
+        class="fixed inset-y-0 left-0 z-40 w-80 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transform transition-transform duration-300"
+        :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+      >
+        <div class="flex flex-col h-full pt-16">
+          <!-- Novel Info -->
+          <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+            <div class="flex gap-3">
+              <div class="w-16 h-20">
+                <img
+                  v-if="currentNovel.coverImage"
+                  :src="currentNovel.coverImage"
+                  :alt="`Bìa truyện ${currentNovel.title}`"
+                  class="w-full h-full object-cover rounded-lg"
+                >
+                <div v-else class="w-full h-full bg-gray-200 rounded-lg flex items-center justify-center">
+                  <BookOpen class="w-8 h-8 text-gray-400" />
+                </div>
+              </div>
+              <div class="flex-1 min-w-0">
+                <h2 class="font-semibold text-gray-900 dark:text-white truncate">
+                  {{ currentNovel.title }}
+                </h2>
+                <p class="text-sm text-gray-600 dark:text-gray-400 truncate">
+                  {{ currentNovel.author }}
+                </p>
+                <div class="flex items-center gap-2 mt-1">
+                  <div class="flex text-yellow-400">
+                    <UIcon
+                      v-for="i in 5"
+                      :key="i"
+                      name="i-lucide-star"
+                      class="w-4 h-4"
+                      :class="i <= Math.round(currentNovel.rating) ? 'text-yellow-400' : 'text-gray-300'"
+                    />
+                  </div>
+                  <span class="text-xs text-gray-500">{{ currentNovel.rating }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Chapter List -->
+          <div class="flex-1 overflow-y-auto">
+            <div class="p-4">
+              <h3 class="font-medium text-gray-900 dark:text-white mb-3">
+                Danh sách chương
+              </h3>
+              <div class="space-y-1">
+                <NuxtLink
+                  v-for="chapter in chapters"
+                  :key="chapter._id"
+                  :to="`/novels/chapter/${chapter._id}`"
+                  class="block p-3 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+                  :class="selectedChapter?._id === chapter._id ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300'"
+                  @click="sidebarOpen = false"
+                >
+                  <div class="flex items-center justify-between">
+                    <span class="font-medium">{{ chapter.title }}</span>
+                    <div class="flex items-center gap-1">
+                      <UIcon
+                        v-if="chapter.isRead"
+                        name="i-lucide-check"
+                        class="w-4 h-4 text-green-500"
+                      />
+                      <UIcon
+                        v-if="chapter.audios?.length"
+                        name="i-lucide-headphones"
+                        class="w-4 h-4 text-blue-500"
+                      />
+                    </div>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">
+                    {{ chapter.wordCount }} từ
+                  </p>
+                </NuxtLink>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main
+        class="flex-1 transition-all duration-300"
+        :class="sidebarOpen ? 'ml-80' : 'ml-0'"
+      >
+        <div class="max-w-4xl mx-auto px-6 py-8">
+          <!-- Chapter Header -->
+          <div v-if="pending" class="mb-8">
+            <USkeleton class="h-12 w-3/4 mb-2" />
+            <USkeleton class="h-6 w-1/2" />
+          </div>
+          <div v-else-if="error" class="mb-8">
+            <p class="text-red-500">
+              Có lỗi xảy ra: {{ error.message }}
+            </p>
+          </div>
+          <div v-else-if="selectedChapter" class="mb-8">
+            <div class="flex items-center justify-between mb-4">
+              <NuxtLink
+                :to="`/novels/${novelId}`"
+                class="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+              >
+                <ArrowLeft class="w-5 h-5" />
+                <span>Quay lại</span>
+              </NuxtLink>
+            </div>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              {{ selectedChapter.title }}
+            </h1>
+            <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+              <span>Chương {{ selectedChapter.chapterNumber }}</span>
+              <span>•</span>
+              <span>{{ selectedChapter.wordCount }} từ</span>
+              <span>•</span>
+              <span>{{ Math.ceil(selectedChapter.wordCount / 200) }} phút đọc</span>
+            </div>
+          </div>
+          <div v-else class="mb-8">
+            <p class="text-gray-500">
+              Không tìm thấy chương.
+            </p>
+          </div>
+
+          <!-- Audio Player -->
+          <div v-if="isAudioMode && currentAudio" class="mb-8">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+              <div class="flex items-center gap-4 mb-4">
+                <UButton
+                  :icon="isPlaying ? 'i-lucide-pause' : 'i-lucide-play'"
+                  size="lg"
+                  @click="togglePlayPause"
+                />
+                <div class="flex-1">
+                  <div class="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+                    <span>{{ formatTime(currentTime) }}</span>
+                    <span>{{ formatTime(duration) }}</span>
+                  </div>
+                  <div class="relative">
+                    <input
+                      type="range"
+                      :value="currentTime"
+                      :max="duration"
+                      class="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                      @input="seekAudio"
+                    >
+                    <div
+                      class="absolute top-0 left-0 h-2 bg-blue-600 rounded-lg pointer-events-none"
+                      :style="{ width: `${(currentTime / duration) * 100}%` }"
+                    />
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <UButton
+                    icon="i-lucide-skip-back"
+                    variant="ghost"
+                    size="sm"
+                    @click="skipBackward"
+                  />
+                  <UButton
+                    icon="i-lucide-skip-forward"
+                    variant="ghost"
+                    size="sm"
+                    @click="skipForward"
+                  />
+                  <USelectMenu
+                    v-model="playbackSpeed"
+                    :options="speedOptions"
+                    size="sm"
+                  />
+                  <UButton
+                    icon="i-lucide-volume-2"
+                    variant="ghost"
+                    size="sm"
+                  >
+                    <input
+                      v-model="volume"
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      class="w-20"
+                      @input="updateVolume"
+                    >
+                  </UButton>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TTS Player -->
+          <div v-if="isTTSMode" class="mb-8">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+              <div class="flex items-center gap-4 mb-4">
+                <UButton
+                  :icon="isTTSPlaying ? 'i-lucide-pause' : 'i-lucide-play'"
+                  size="lg"
+                  @click="toggleTTS"
+                />
+                <div class="flex-1">
+                  <div class="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
+                    <span>Câu {{ currentSentenceIndex + 1 }}</span>
+                    <span>{{ sentences.length }} câu</span>
+                  </div>
+                  <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      class="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                      :style="{ width: `${(currentSentenceIndex / Math.max(sentences.length - 1, 1)) * 100}%` }"
+                    />
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <UButton
+                    icon="i-lucide-skip-back"
+                    variant="ghost"
+                    size="sm"
+                    :disabled="currentSentenceIndex === 0"
+                    @click="previousSentence"
+                  />
+                  <UButton
+                    icon="i-lucide-skip-forward"
+                    variant="ghost"
+                    size="sm"
+                    :disabled="currentSentenceIndex >= sentences.length - 1"
+                    @click="nextSentence"
+                  />
+                  <UButton
+                    icon="i-lucide-rotate-ccw"
+                    variant="ghost"
+                    size="sm"
+                    @click="restartTTS"
+                  />
+                </div>
+              </div>
+              <!-- Current sentence highlight -->
+              <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border-l-4 border-blue-500">
+                <p class="text-sm text-gray-700 dark:text-gray-300">
+                  <strong>Đang đọc:</strong> {{ sentences[currentSentenceIndex]?.text || 'Không có nội dung' }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reading Content -->
+          <article
+            class="prose prose-lg dark:prose-invert max-w-none text-justify"
+            :style="{
+              fontSize: `${fontSize}px`,
+              lineHeight: lineHeight,
+              fontFamily: fontFamily
+            }"
+          >
+            <div v-if="isTTSMode || (isAudioMode && audioSyncEnabled)" class="tts-content">
+              <p
+                v-for="(sentence, index) in sentences"
+                :key="index"
+                წ
+              >
+                <span
+                  :class="[
+                    'sentence cursor-pointer p-2 rounded transition-colors',
+                    index === currentSentenceIndex ? 'current-sentence' : '',
+                    index === selectedSentenceIndex ? 'bg-blue-100 border-l-4 border-blue-500' : 'hover:bg-gray-50',
+                    index < currentSentenceIndex && audioSyncEnabled ? 'read-sentence' : ''
+                  ]"
+                  :data-start-time="sentence.startTime"
+                  :data-end-time="sentence.endTime"
+                  @click="selectSentence(index)"
+                >
+                  {{ sentence.text }}
+                </span>
+              </p>
+            </div>
+            <div v-else class="text-justify" v-html="sanitizedContent" />
+          </article>
+
+          <!-- Navigation -->
+          <div class="flex items-center justify-between mt-12 pt-8 border-t border-gray-200 dark:border-gray-800">
+            <UButton
+              v-if="previousChapter"
+              icon="i-lucide-chevron-left"
+              variant="outline"
+              :to="`/novels/chapter/${previousChapter._id}`"
+            >
+              Chương trước
+            </UButton>
+            <div v-else />
+            <UButton
+              v-if="nextChapter"
+              icon="i-lucide-chevron-right"
+              trailing
+              :to="`/novels/chapter/${nextChapter._id}`"
+            >
+              Chương tiếp
+            </UButton>
+            <div v-else />
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <USlideover v-model:open="showSettings" title="Cài đặt">
+      <template #body>
+        <UCard>
+          <div class="space-y-6">
+            <!-- Font Settings -->
+            <div>
+              <label class="block text-sm font-medium mb-2">Cỡ chữ</label>
+              <USlider
+                v-model="fontSize"
+                :min="14"
+                :max="24"
+                :step="1"
+              />
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>Nhỏ</span>
+                <span>Lớn</span>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-2">Khoảng cách dòng</label>
+              <USelectMenu
+                v-model="lineHeight"
+                :options="[
+                  { label: 'Gần', value: '1.4' },
+                  { label: 'Bình thường', value: '1.6' },
+                  { label: 'Xa', value: '1.8' },
+                  { label: 'Rất xa', value: '2.0' }
+                ]"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-2">Font chữ</label>
+              <USelectMenu
+                v-model="fontFamily"
+                :options="[
+                  { label: 'Mặc định', value: 'system-ui' },
+                  { label: 'Times New Roman', value: 'Times New Roman, serif' },
+                  { label: 'Georgia', value: 'Georgia, serif' },
+                  { label: 'Arial', value: 'Arial, sans-serif' }
+                ]"
+              />
+            </div>
+            <!-- Theme -->
+            <div>
+              <label class="block text-sm font-medium mb-2">Giao diện</label>
+              <div class="grid grid-cols-3 gap-2">
+                <button
+                  v-for="theme in themes"
+                  :key="theme.value"
+                  class="p-3 rounded-lg border-2 transition-colors"
+                  :class="selectedTheme === theme.value ? 'border-primary-500' : 'border-gray-200 dark:border-gray-700'"
+                  @click="selectedTheme = theme.value"
+                >
+                  <div class="w-full h-8 rounded mb-2" :class="theme.preview" />
+                  <span class="text-xs">{{ theme.label }}</span>
+                </button>
+              </div>
+            </div>
+            <!-- Audio/TTS Settings -->
+            <div>
+              <label class="block text-sm font-medium mb-2">Tốc độ phát</label>
+              <USelectMenu v-model="playbackSpeed" :options="speedOptions" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-2">Âm lượng</label>
+              <USlider
+                v-model="volume"
+                :min="0"
+                :max="1"
+                :step="0.1"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-2">Giọng đọc</label>
+              <USelectMenu v-model="selectedVoice" :options="voiceOptions" />
+            </div>
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium">Tự động chuyển chương</label>
+              <USwitch v-model="autoNextChapter" />
+            </div>
+          </div>
+        </UCard>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <UButton variant="outline" @click="showSettings = false">
+            Hủy
+          </UButton>
+          <UButton @click="saveSettings">
+            Lưu
+          </UButton>
+        </div>
+      </template>
+    </USlideover>
+
+    <!-- TTS Settings Modal -->
+    <UModal v-model="showTTSSettings" title="Cài đặt TTS">
+      <template #body>
+        <UCard>
+          <div class="space-y-6">
+            <div>
+              <label class="block text-sm font-medium mb-2">Giọng đọc</label>
+              <USelectMenu
+                v-model="selectedTTSVoice"
+                :options="ttsVoices.map(voice => ({ label: voice.name, value: voice }))"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-2">Tốc độ đọc</label>
+              <USlider
+                v-model="ttsRate"
+                :min="0.5"
+                :max="2"
+                :step="0.1"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-2">Độ cao giọng</label>
+              <USlider
+                v-model="ttsPitch"
+                :min="0"
+                :max="2"
+                :step="0.1"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-2">Âm lượng</label>
+              <USlider
+                v-model="ttsVolume"
+                :min="0"
+                :max="1"
+                :step="0.1"
+              />
+            </div>
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium">Tự động cuộn</label>
+              <USwitch v-model="ttsAutoScroll" />
+            </div>
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium">Tự động chuyển chương</label>
+              <USwitch v-model="autoNextChapter" />
+            </div>
+          </div>
+        </UCard>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <UButton variant="outline" @click="showTTSSettings = false">
+            Hủy
+          </UButton>
+          <UButton @click="saveTTSSettings">
+            Lưu
+          </UButton>
+        </div>
+      </template>
+    </UModal>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import DOMPurify from 'dompurify'
+import { useHead } from '@vueuse/head'
+import { Volume2, ArrowLeft, Play, Pause, BookOpen } from 'lucide-vue-next'
+import type { Chapter, IAudio } from '~/types/chapter'
+import type { Novel } from '~/types/novel'
+import { useChapters } from '~/composables/useChapters'
+
+definePageMeta({
+  layout: false
+})
+
+const route = useRoute()
+const novelId = route.params.id as string
+const chapterId = route.params.chapter as string
+
+// Fetch chapter and novel data
+const { getChapterById } = useChapters()
+const { data: selectedChapter, pending, error } = await useAsyncData<Chapter>('chapter', async () => {
+  const result = await getChapterById(chapterId)
+  const raw = result.data.value
+  return {
+    ...raw,
+    novelId: typeof raw?.novelId === 'string' ? raw.novelId : (raw?.novelId?._id ?? ''),
+    audios: Array.isArray(raw?.audios) ? raw.audios.filter(a => typeof a === 'object') : []
+  }
+})
+
+const { data: novelData } = await useFetch<Novel>(`http://localhost:5000/api/v1/novel/${novelId}`, {
+  method: 'GET',
+  credentials: 'include'
+})
+
+const { getChaptersByNovelId } = useChapters()
+const { data: chapters } = await useAsyncData<Chapter[]>('chapters', async () => {
+  const result = await getChaptersByNovelId(novelId)
+  return (result.data.value || []).map((chapter: any) => ({
+    ...chapter,
+    audios: Array.isArray(chapter.audios) ? chapter.audios.filter((a: IAudio) => typeof a === 'object') : []
+  })) as Chapter[]
+})
+
+// Reactive data
+const sidebarOpen = ref(false)
+const showSettings = ref(false)
+const showTTSSettings = ref(false)
+const isAudioMode = ref(false)
+const isTTSMode = ref(false)
+const audioSyncEnabled = ref(true)
+const audioPlayer = ref<HTMLAudioElement | null>(null)
+const isPlaying = ref(false)
+const currentTime = ref(0)
+const duration = ref(0)
+const volume = ref(1)
+const playbackSpeed = ref('1.0x')
+const selectedVoice = ref('vi-VN-female')
+const autoNextChapter = ref(true)
+const fontSize = ref(18)
+const lineHeight = ref('1.6')
+const fontFamily = ref('system-ui')
+const selectedTheme = ref('light')
+
+// TTS related
+const ttsVoices = ref<SpeechSynthesisVoice[]>([])
+const selectedTTSVoice = ref<SpeechSynthesisVoice | null>(null)
+const ttsRate = ref(1.0)
+const ttsPitch = ref(1.0)
+const ttsVolume = ref(0.8)
+const currentSentenceIndex = ref(-1)
+const selectedSentenceIndex = ref(-1)
+const sentences = ref<{ text: string, startTime: number, endTime: number }[]>([])
+const speechSynthesis = ref<SpeechSynthesis | null>(null)
+const currentUtterance = ref<SpeechSynthesisUtterance | null>(null)
+const isTTSPlaying = ref(false)
+const ttsAutoScroll = ref(true)
+
+// Computed properties
+const currentNovel = computed(() => ({
+  id: novelId,
+  title: novelData.value?.title ?? 'Không có tiêu đề',
+  author: novelData.value?.author ?? 'Không có tác giả',
+  coverImage: novelData.value?.coverImage ?? '',
+  rating: novelData.value?.rating ?? 0
+}))
+
+const currentChapter = computed(() => ({
+  id: selectedChapter.value?._id ?? '',
+  number: selectedChapter.value?.chapterNumber ?? 0,
+  title: selectedChapter.value?.title ?? 'Không có tiêu đề',
+  content: selectedChapter.value?.content ?? '',
+  wordCount: selectedChapter.value?.wordCount ?? 0,
+  readTime: Math.ceil((selectedChapter.value?.wordCount ?? 0) / 200),
+  hasAudio: !!selectedChapter.value?.audios?.length,
+  isRead: false
+}))
+
+const currentAudio = computed(() => {
+  if (!selectedChapter.value?.audios?.length) return null
+  return selectedChapter.value.audios[0] as IAudio
+})
+
+const readingProgress = computed(() => {
+  const currentIndex = chapters.value?.findIndex(ch => ch._id === selectedChapter.value?._id) ?? -1
+  return chapters.value?.length ? ((currentIndex + 1) / chapters.value.length) * 100 : 0
+})
+
+const previousChapter = computed(() => {
+  const currentIndex = chapters.value?.findIndex(ch => ch._id === selectedChapter.value?._id) ?? -1
+  return currentIndex > 0 ? chapters.value[currentIndex - 1] : null
+})
+
+const nextChapter = computed(() => {
+  const currentIndex = chapters.value?.findIndex(ch => ch._id === selectedChapter.value?._id) ?? -1
+  return currentIndex < (chapters.value?.length ?? 0) - 1 ? chapters.value[currentIndex + 1] : null
+})
+
+const sanitizedContent = computed(() => {
+  return DOMPurify.sanitize(selectedChapter.value?.content ?? '')
+})
+
+// Options
+const speedOptions = [
+  { label: '0.5x', value: '0.5x' },
+  { label: '0.75x', value: '0.75x' },
+  { label: '1.0x', value: '1.0x' },
+  { label: '1.25x', value: '1.25x' },
+  { label: '1.5x', value: '1.5x' },
+  { label: '2.0x', value: '2.0x' }
+]
+
+const voiceOptions = [
+  { label: 'Giọng nữ Việt Nam', value: 'vi-VN-female' },
+  { label: 'Giọng nam Việt Nam', value: 'vi-VN-male' },
+  { label: 'Giọng nữ miền Bắc', value: 'vi-VN-north-female' },
+  { label: 'Giọng nam miền Nam', value: 'vi-VN-south-male' }
+]
+
+const themes = [
+  { label: 'Sáng', value: 'light', preview: 'bg-white border border-gray-200' },
+  { label: 'Tối', value: 'dark', preview: 'bg-gray-900' },
+  { label: 'Sepia', value: 'sepia', preview: 'bg-yellow-50' }
+]
+
+// Methods
+const parseSentences = (content: string) => {
+  const sentenceTexts = content.split(/[.!?]+/).filter(s => s.trim().length > 0)
+  const avgDuration = currentAudio.value?.duration ?? 300
+  const timePerSentence = avgDuration / sentenceTexts.length
+
+  sentences.value = sentenceTexts.map((text, index) => ({
+    text: text.trim(),
+    startTime: index * timePerSentence,
+    endTime: (index + 1) * timePerSentence
+  }))
+}
+
+const loadSubtitle = async (subtitleUrl: string) => {
+  try {
+    console.log('Loading subtitle from:', subtitleUrl)
+  } catch (error) {
+    console.error('Error loading subtitle:', error)
+  }
+}
+
+const selectSentence = (index: number) => {
+  selectedSentenceIndex.value = index
+  if (audioSyncEnabled.value && audioPlayer.value && sentences.value[index]) {
+    audioPlayer.value.currentTime = sentences.value[index].startTime
+  }
+}
+
+const toggleAudioSync = () => {
+  audioSyncEnabled.value = !audioSyncEnabled.value
+}
+
+const togglePlayPause = () => {
+  if (!audioPlayer.value) return
+  if (isPlaying.value) {
+    audioPlayer.value.pause()
+  } else {
+    audioPlayer.value.play()
+  }
+  isPlaying.value = !isPlaying.value
+}
+
+const seekAudio = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const time = parseFloat(target.value)
+  if (audioPlayer.value) {
+    audioPlayer.value.currentTime = time
+  }
+}
+
+const updateVolume = () => {
+  if (audioPlayer.value) {
+    audioPlayer.value.volume = volume.value
+  }
+}
+
+const onAudioLoaded = () => {
+  if (audioPlayer.value) {
+    duration.value = audioPlayer.value.duration
+  }
+}
+
+const onTimeUpdate = () => {
+  if (audioPlayer.value) {
+    currentTime.value = audioPlayer.value.currentTime
+    if (audioSyncEnabled.value) {
+      const currentSentence = sentences.value.findIndex(
+        s => currentTime.value >= s.startTime && currentTime.value <= s.endTime
+      )
+      if (currentSentence !== -1) {
+        currentSentenceIndex.value = currentSentence
+      }
+    }
+  }
+}
+
+const onAudioEnded = () => {
+  isPlaying.value = false
+  currentSentenceIndex.value = -1
+  if (autoNextChapter.value && nextChapter.value) {
+    navigateTo(`/novels/chapter/${nextChapter.value._id}`)
+  }
+}
+
+const toggleMode = () => {
+  isAudioMode.value = !isAudioMode.value
+  if (!isAudioMode.value) {
+    isPlaying.value = false
+  }
+  if (isTTSMode.value) {
+    stopTTS()
+  }
+}
+
+const skipBackward = () => {
+  currentTime.value = Math.max(0, currentTime.value - 15)
+}
+
+const skipForward = () => {
+  currentTime.value = Math.min(duration.value, currentTime.value + 15)
+}
+
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+const initializeTTS = () => {
+  if ('speechSynthesis' in window) {
+    speechSynthesis.value = window.speechSynthesis
+    loadTTSVoices()
+  }
+}
+
+const loadTTSVoices = () => {
+  const voices = speechSynthesis.value?.getVoices() ?? []
+  ttsVoices.value = voices.filter(voice => voice.lang.includes('vi') || voice.lang.includes('en'))
+  if (ttsVoices.value.length > 0 && !selectedTTSVoice.value) {
+    selectedTTSVoice.value = ttsVoices.value.find(voice => voice.lang.includes('vi')) || ttsVoices.value[0]
+  }
+}
+
+const splitIntoSentences = (text: string) => {
+  const cleanText = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+  const sentenceArray = cleanText.split(/[.!?]+/).filter(s => s.trim().length > 0)
+  return sentenceArray.map(s => s.trim() + '.')
+}
+
+const toggleTTSMode = () => {
+  isTTSMode.value = !isTTSMode.value
+  if (isTTSMode.value) {
+    if (isPlaying.value) {
+      isPlaying.value = false
+      audioPlayer.value?.pause()
+    }
+    sentences.value = splitIntoSentences(selectedChapter.value?.content ?? '')
+    currentSentenceIndex.value = 0
+  } else {
+    stopTTS()
+  }
+}
+
+const toggleTTS = () => {
+  if (isTTSPlaying.value) {
+    pauseTTS()
+  } else {
+    startTTS()
+  }
+}
+
+const startTTS = () => {
+  if (!selectedTTSVoice.value || currentSentenceIndex.value >= sentences.value.length) return
+  isTTSPlaying.value = true
+  speakSentence(currentSentenceIndex.value)
+}
+
+const pauseTTS = () => {
+  isTTSPlaying.value = false
+  speechSynthesis.value?.pause()
+}
+
+const stopTTS = () => {
+  isTTSPlaying.value = false
+  speechSynthesis.value?.cancel()
+  currentUtterance.value = null
+}
+
+const restartTTS = () => {
+  stopTTS()
+  currentSentenceIndex.value = 0
+  if (sentences.value.length > 0) {
+    startTTS()
+  }
+}
+
+const speakSentence = (index: number) => {
+  if (!sentences.value[index] || !selectedTTSVoice.value) return
+
+  const utterance = new SpeechSynthesisUtterance(sentences.value[index].text ?? sentences.value[index])
+  utterance.voice = selectedTTSVoice.value
+  utterance.rate = ttsRate.value
+  utterance.pitch = ttsPitch.value
+  utterance.volume = ttsVolume.value
+
+  utterance.onend = () => {
+    if (isTTSPlaying.value) {
+      currentSentenceIndex.value++
+      if (currentSentenceIndex.value < sentences.value.length) {
+        setTimeout(() => {
+          if (isTTSPlaying.value) {
+            speakSentence(currentSentenceIndex.value)
+          }
+        }, 500)
+      } else {
+        isTTSPlaying.value = false
+        if (autoNextChapter.value && nextChapter.value) {
+          setTimeout(() => {
+            navigateTo(`/novels/chapter/${nextChapter.value._id}`)
+          }, 2000)
+        }
+      }
+    }
+  }
+
+  utterance.onerror = () => {
+    isTTSPlaying.value = false
+  }
+
+  currentUtterance.value = utterance
+  speechSynthesis.value?.speak(utterance)
+
+  if (ttsAutoScroll.value) {
+    scrollToCurrentSentence()
+  }
+}
+
+const previousSentence = () => {
+  if (currentSentenceIndex.value > 0) {
+    stopTTS()
+    currentSentenceIndex.value--
+    if (isTTSPlaying.value) {
+      speakSentence(currentSentenceIndex.value)
+    }
+  }
+}
+
+const nextSentence = () => {
+  if (currentSentenceIndex.value < sentences.value.length - 1) {
+    stopTTS()
+    currentSentenceIndex.value++
+    if (isTTSPlaying.value) {
+      speakSentence(currentSentenceIndex.value)
+    }
+  }
+}
+
+const jumpToSentence = (index: number) => {
+  stopTTS()
+  currentSentenceIndex.value = index
+  selectedSentenceIndex.value = index
+  if (isTTSPlaying.value) {
+    speakSentence(index)
+  }
+}
+
+const scrollToCurrentSentence = () => {
+  nextTick(() => {
+    const currentElement = document.querySelector('.current-sentence')
+    if (currentElement) {
+      currentElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      })
+    }
+  })
+}
+
+const saveSettings = () => {
+  localStorage.setItem('reading-settings', JSON.stringify({
+    fontSize: fontSize.value,
+    lineHeight: lineHeight.value,
+    fontFamily: fontFamily.value,
+    theme: selectedTheme.value,
+    playbackSpeed: playbackSpeed.value,
+    volume: volume.value,
+    voice: selectedVoice.value,
+    autoNextChapter: autoNextChapter.value
+  }))
+  showSettings.value = false
+}
+
+const saveTTSSettings = () => {
+  localStorage.setItem('tts-settings', JSON.stringify({
+    selectedVoice: selectedTTSVoice.value,
+    rate: ttsRate.value,
+    pitch: ttsPitch.value,
+    volume: ttsVolume.value,
+    autoScroll: ttsAutoScroll.value,
+    autoNext: autoNextChapter.value
+  }))
+  showTTSSettings.value = false
+}
+
+// Lifecycle
+onMounted(() => {
+  if (selectedChapter.value?.content) {
+    parseSentences(selectedChapter.value.content)
+    if (currentAudio.value?.subtitle?.url) {
+      loadSubtitle(currentAudio.value.subtitle.url)
+    }
+  }
+  initializeTTS()
+  const savedSettings = localStorage.getItem('reading-settings')
+  if (savedSettings) {
+    const settings = JSON.parse(savedSettings)
+    fontSize.value = settings.fontSize ?? 18
+    lineHeight.value = settings.lineHeight ?? '1.6'
+    fontFamily.value = settings.fontFamily ?? 'system-ui'
+    selectedTheme.value = settings.theme ?? 'light'
+    playbackSpeed.value = settings.playbackSpeed ?? '1.0x'
+    volume.value = settings.volume ?? 1
+    selectedVoice.value = settings.voice ?? 'vi-VN-female'
+    autoNextChapter.value = settings.autoNextChapter ?? true
+  }
+  const savedTTSSettings = localStorage.getItem('tts-settings')
+  if (savedTTSSettings) {
+    const settings = JSON.parse(savedTTSSettings)
+    ttsRate.value = settings.rate ?? 1.0
+    ttsPitch.value = settings.pitch ?? 1.0
+    ttsVolume.value = settings.volume ?? 0.8
+    ttsAutoScroll.value = settings.autoScroll ?? true
+    autoNextChapter.value = settings.autoNext ?? true
+  }
+  if (speechSynthesis.value) {
+    speechSynthesis.value.onvoiceschanged = loadTTSVoices
+  }
+})
+
+watch(volume, updateVolume)
+
+watch(currentChapter, () => {
+  if (isTTSMode.value && selectedChapter.value?.content) {
+    stopTTS()
+    sentences.value = splitIntoSentences(selectedChapter.value.content)
+    currentSentenceIndex.value = 0
+  }
+})
+
+watch(selectedTheme, (newTheme) => {
+  document.documentElement.classList.remove('light', 'dark', 'sepia')
+  document.documentElement.classList.add(newTheme)
+})
+
+useHead({
+  title: computed(() => `${selectedChapter.value?.title ?? 'Chương'} - ${novelData.value?.title ?? 'Truyện'}`),
+  meta: [
+    {
+      name: 'description',
+      content: computed(() => `Đọc chương ${selectedChapter.value?.chapterNumber ?? 0}: ${selectedChapter.value?.title ?? ''}`)
+    }
+  ]
+})
+</script>
+
+<style scoped>
+.prose {
+  color: inherit;
+}
+.prose p {
+  margin-bottom: 1.5em;
+  text-align: justify;
+}
+.prose p:first-child {
+  margin-top: 0;
+}
+.prose p:last-child {
+  margin-bottom: 0;
+}
+.tts-content .sentence {
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+.tts-content .sentence:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+.tts-content .current-sentence {
+  background-color: rgba(59, 130, 246, 0.2);
+  border-left: 4px solid rgb(59, 130, 246);
+  font-weight: 600;
+}
+.tts-content .read-sentence {
+  opacity: 0.6;
+  background-color: rgba(34, 197, 94, 0.1);
+}
+.sentence {
+  line-height: 1.8;
+  margin-bottom: 0.5rem;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-track {
+  background: #e5e7eb;
+  height: 8px;
+  border-radius: 4px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #2563eb;
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-track {
+  background: #e5e7eb;
+  height: 8px;
+  border-radius: 4px;
+  border: none;
+}
+input[type="range"]::-moz-range-thumb {
+  background: #2563eb;
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+</style>

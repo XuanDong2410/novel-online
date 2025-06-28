@@ -55,6 +55,10 @@
 
     <template #body>
       <div class="space-y-8 p-6">
+        <!-- Stats -->
+        <div v-if="showStats && statsData" class="animate-in slide-in-from-top duration-300">
+          <AdminLogStats :stats="statsData" />
+        </div>
         <!-- Filters -->
         <div v-if="showFilters" class="animate-in slide-in-from-top duration-300">
           <AdminLogFilters
@@ -62,12 +66,6 @@
             @apply="handleFiltersApply"
           />
         </div>
-
-        <!-- Stats -->
-        <div v-if="showStats && statsData" class="animate-in slide-in-from-top duration-300">
-          <AdminLogStats :stats="statsData" />
-        </div>
-
         <!-- Timeline -->
         <div class="animate-in fade-in duration-500">
           <AdminLogTimeline
